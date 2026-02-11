@@ -373,8 +373,17 @@ function transformApiToStats(api: any): StatsData {
 export default function ExecutiveOverview() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentDate, setCurrentDate] = useState<string>("");
 
   useEffect(() => {
+    setCurrentDate(
+      new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    );
+
     fetch("/api/stats")
       .then((res) => res.json())
       .then((data) => {
@@ -534,11 +543,7 @@ export default function ExecutiveOverview() {
               <Activity className="h-4 w-4 text-emerald-400" />
               <span className="text-emerald-400 font-medium">Live</span>
               <span className="ml-1">
-                {new Date().toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
+                {currentDate}
               </span>
             </div>
           </div>
