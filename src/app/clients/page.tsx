@@ -156,7 +156,19 @@ export default function ClientsPage() {
         ]);
 
         const statsData = await statsRes.json();
-        setStats(statsData);
+        // API returns nested { overview, clients, revenue, ... }
+        const cl = statsData.clients ?? {};
+        const ov = statsData.overview ?? {};
+        const rv = statsData.revenue ?? {};
+        setStats({
+          totalClients: cl.total ?? ov.totalClients ?? 0,
+          clientsByStatus: cl.statusBreakdown ?? ov.clientStatusBreakdown ?? {},
+          clientsByStage: cl.programStageBreakdown ?? ov.programStageBreakdown ?? {},
+          clientsByMembership: cl.membershipBreakdown ?? ov.membershipLevelBreakdown ?? {},
+          avgDaysInProgram: cl.avgDaysInProgram ?? 0,
+          activeRefunds: rv.totalRefunds ?? ov.totalRefunds ?? 0,
+          refundReasons: rv.refundReasons ?? {},
+        });
 
         // Build heatmap cross-tabulation from raw client records
         const clientsData = await clientsRes.json();

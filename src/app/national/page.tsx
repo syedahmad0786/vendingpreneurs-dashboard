@@ -120,7 +120,13 @@ export default function NationalContractsPage() {
     fetch("/api/stats")
       .then((res) => res.json())
       .then((data) => {
-        setStats(data);
+        // API returns nested { overview, national, ... } — extract national section
+        const nat = data.national ?? data;
+        setStats({
+          nationalProperties: nat.nationalProperties ?? nat.totalMSA ?? 0,
+          nationalByStage: nat.nationalByStage ?? nat.msaStatusBreakdown ?? {},
+          nationalByPropertyGroup: nat.nationalByPropertyGroup ?? {},
+        });
         setLoading(false);
       })
       .catch(() => setLoading(false));

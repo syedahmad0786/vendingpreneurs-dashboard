@@ -16,6 +16,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTable, resolveTableId } from "@/lib/airtable";
 
+// Allow up to 60 seconds for large table fetches
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;

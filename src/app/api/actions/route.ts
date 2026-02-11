@@ -16,6 +16,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { triggerResubmit, triggerAudit } from "@/lib/n8n";
 
+// Allow up to 30 seconds for webhook triggers
+export const maxDuration = 30;
+
 interface ActionRequestBody {
   action: "resubmit" | "audit";
   payload?: Record<string, unknown>;

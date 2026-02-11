@@ -113,7 +113,21 @@ export default function RevenuePage() {
     fetch("/api/stats")
       .then((res) => res.json())
       .then((data) => {
-        setStats(data);
+        // API returns nested { overview, clients, revenue, ... }
+        const ov = data.overview ?? {};
+        const cl = data.clients ?? {};
+        const rv = data.revenue ?? {};
+        setStats({
+          totalRevenue: ov.totalRevenueRaw ?? rv.totalRevenue ?? 0,
+          totalNetRevenue: ov.totalNetRevenueRaw ?? rv.totalNetRevenue ?? 0,
+          totalClients: cl.total ?? ov.totalClients ?? 0,
+          totalMachines: ov.totalMachines ?? rv.totalMachines ?? 0,
+          clientsByMembership: cl.membershipBreakdown ?? ov.membershipLevelBreakdown ?? {},
+          newClientsPerMonth: Object.entries(cl.byMonth ?? {})
+            .sort()
+            .slice(-12)
+            .map(([month, count]) => ({ month, count: count as number })),
+        });
         setLoading(false);
       })
       .catch(() => setLoading(false));

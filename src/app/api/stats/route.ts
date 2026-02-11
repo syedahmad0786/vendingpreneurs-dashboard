@@ -33,6 +33,9 @@ import {
 } from "@/lib/utils";
 import type { AirtableRecord } from "@/lib/utils";
 
+// Allow up to 60 seconds for this endpoint (fetches 12 tables)
+export const maxDuration = 60;
+
 const STATS_CACHE_KEY = "dashboard:stats:all";
 const STATS_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -102,15 +105,47 @@ export async function GET() {
     // =================================================================
     // OVERVIEW
     // =================================================================
-    const clientStatusCounts = countByField(clients, "Status");
-    const activeClients = clientStatusCounts["Active"] || 0;
-    const totalRefundAmt = sumField(refunds, "Amount");
+    // Try multiple possible field names for client status
+    const clientStatusCounts = {
+      ...countByField(clients, "Status"),
+      ...countByField(clients, "Program Stages"),
+    };
+    // Count active clients by checking multiple possible status values
+    const activeClients = clients.filter((r) => {
+      const status = String(r.fields["Status"] ?? "");
+      return (
+        status &&
+        status !== "Churned" &&
+        status !== "Full Refund" &&
+        status !== "Cancelled" &&
+        status !== "Paused" &&
+        status !== ""
+      );
+    }).length;
+
+    const totalRefundAmt = sumField(refunds, "Refund Amount") || sumField(refunds, "Amount");
+
+    const programStageCounts = countByField(clients, "Program Stages");
+    const membershipLevelCounts = countByField(clients, "Membership Level");
+    const currentPhaseCounts = countByField(clients, "Current Phase");
+
+    const totalMachines = sumField(clients, "Total Number of Machines");
+    const totalRevenue = sumField(clients, "Total Monthly Revenue");
+    const totalNetRevenue = sumField(clients, "Total Net Revenue");
 
     const overview = {
       totalClients: clients.length,
       activeClients,
       inactiveClients: clients.length - activeClients,
-      clientStatusBreakdown: clientStatusCounts,
+      clientStatusBreakdown: countByField(clients, "Status"),
+      programStageBreakdown: programStageCounts,
+      membershipLevelBreakdown: membershipLevelCounts,
+      currentPhaseBreakdown: currentPhaseCounts,
+      totalMachines,
+      totalRevenue: formatCurrency(totalRevenue),
+      totalRevenueRaw: totalRevenue,
+      totalNetRevenue: formatCurrency(totalNetRevenue),
+      totalNetRevenueRaw: totalNetRevenue,
       totalOnboarding: studentOnboarding.length,
       totalLeads: warmLeads.length,
       totalNationalContracts: nationalContractsMSA.length,
@@ -125,9 +160,49 @@ export async function GET() {
     // ONBOARDING
     // =================================================================
     const obStatusCounts = countByField(studentOnboarding, "Status");
-    const obByMonth = groupByMonth(studentOnboarding, "Created");
+    const obByMonth = groupByMonth(studentOnboarding, "Create Date") ||
+                      groupByMonth(studentOnboarding, "Created");
     const obErrorTypes = countByField(onboardingErrors, "Error Type");
-    const recentOB = recentRecords(studentOnboarding, "Created", 30);
+    const obErrorStatus = countByField(onboardingErrors, "Status");
+    const activeErrors = (obErrorStatus["New"] ?? 0) + (obErrorStatus["Investigating"] ?? 0);
+    const recentOB = recentRecords(studentOnboarding, "Create Date", 30) ||
+                     recentRecords(studentOnboarding, "Created", 30);
+
+    // Onboarding phases from clients in stage 1
+    const onboardingClients = clients.filter((r) =>
+      String(r.fields["Program Stages"] ?? "").includes("Onboarding")
+    );
+    const onboardingByPhase = countByField(onboardingClients, "Current Phase");
+
+    // Pending student records (Skool not granted)
+    const pendingSkool = studentOnboarding.filter(
+      (r) => !r.fields["Skool Granted"] && !r.fields["Skool granted"]
+    ).length;
+
+    // Compute avg days to complete onboarding from client level log
+    const obLevelRecords = clientLevelLog.filter((r) =>
+      String(r.fields["Program Level"] ?? r.fields["Level"] ?? "")
+        .toLowerCase()
+        .includes("onboarding")
+    );
+    const avgDaysToComplete =
+      obLevelRecords.length > 0
+        ? Math.round(
+            avgField(obLevelRecords, "Days Spent in this Level") ||
+            avgField(obLevelRecords, "Days in Level") ||
+            avgField(obLevelRecords, "Days") ||
+            0
+          )
+        : 0;
+
+    // Completion trend: monthly count of completed onboardings
+    const completionTrend = Object.entries(monthCounts(obByMonth))
+      .sort()
+      .slice(-6)
+      .map(([month, completed]) => ({
+        month: month.slice(5), // "2024-09" → "09"
+        completed,
+      }));
 
     const onboarding = {
       total: studentOnboarding.length,
@@ -135,68 +210,135 @@ export async function GET() {
       byMonth: monthCounts(obByMonth),
       recentCount: recentOB.length,
       errorCount: onboardingErrors.length,
+      activeErrors,
       errorTypes: obErrorTypes,
+      errorStatusBreakdown: obErrorStatus,
       errorRate: pct(onboardingErrors.length, studentOnboarding.length),
+      onboardingByPhase,
+      onboardingClientCount: onboardingClients.length,
+      pendingSkool,
+      // Aliases for onboarding page consumption
+      inOnboarding: onboardingClients.length,
+      pendingStudentRecords: pendingSkool,
+      avgDaysToComplete,
+      phaseBreakdown: onboardingByPhase,
+      completionTrend,
     };
 
     // =================================================================
     // CLIENTS
     // =================================================================
-    const clientsByMonth = groupByMonth(clients, "Created");
-    const levelCounts = countByField(clientLevelLog, "Level");
-    const thisMonthClients = currentMonthRecords(clients, "Created");
+    const clientsByMonth = groupByMonth(clients, "Date Added") ||
+                          groupByMonth(clients, "Created");
+    const levelCounts = countByField(clientLevelLog, "Program Level") ||
+                       countByField(clientLevelLog, "Level");
+    const thisMonthClients = currentMonthRecords(clients, "Date Added") ||
+                            currentMonthRecords(clients, "Created");
+
+    const avgDaysInProgram = avgField(clients, "Days in Program");
+    const churnedCount = clients.filter((r) =>
+      String(r.fields["Status"] ?? "").toLowerCase().includes("churn")
+    ).length;
+    const dialPriorityCounts = countByField(clients, "Dial Priority");
 
     const clientsSection = {
       total: clients.length,
       active: activeClients,
       inactive: clients.length - activeClients,
       activeRate: pct(activeClients, clients.length),
-      statusBreakdown: clientStatusCounts,
+      statusBreakdown: countByField(clients, "Status"),
+      programStageBreakdown: programStageCounts,
+      membershipBreakdown: membershipLevelCounts,
       byMonth: monthCounts(clientsByMonth),
       levelBreakdown: levelCounts,
       newThisMonth: thisMonthClients.length,
+      avgDaysInProgram: Math.round(avgDaysInProgram),
+      churnRate: pct(churnedCount, clients.length),
+      churnedCount,
+      dialPriority: dialPriorityCounts,
+      totalMachines,
     };
 
     // =================================================================
     // LEADS
     // =================================================================
+    const leadTempCounts = countByField(warmLeads, "Lead Temperature");
     const leadStatusCounts = countByField(warmLeads, "Status");
-    const leadSourceCounts = countByField(warmLeads, "Source");
-    const leadsByMonth = groupByMonth(warmLeads, "Created");
-    const qaPassCount = filterRecords(warmLeadQA, "QA Result", "Pass").length;
+    const leadOutcomeCounts = countByField(warmLeads, "Final Outcome");
+    const leadSourceCounts = countByField(warmLeads, "Lead Source") ||
+                            countByField(warmLeads, "Source");
+    const leadTypeCounts = countByField(warmLeads, "Lead Type");
+    const leadLocationCounts = countByField(warmLeads, "Location Type");
+    const leadsByMonth = groupByMonth(warmLeads, "Lead Date") ||
+                        groupByMonth(warmLeads, "Created");
+    const leadOwnerCounts = countByField(warmLeads, "Lead Owner");
+
+    const qaScores = warmLeadQA.map((r) => Number(r.fields["Final Score"] ?? 0)).filter(Boolean);
+    const avgLeadScore = qaScores.length > 0
+      ? Math.round((qaScores.reduce((a, b) => a + b, 0) / qaScores.length) * 10) / 10
+      : 0;
+    const qaOutcomeCounts = countByField(warmLeadQA, "Outcome Result");
+    const qaPassCount = qaOutcomeCounts["Pass"] ?? 0;
     const qaTotal = warmLeadQA.length;
 
     const leads = {
       total: warmLeads.length,
+      temperatureBreakdown: leadTempCounts,
+      hotLeads: leadTempCounts["Hot"] ?? 0,
+      warmLeadsCount: leadTempCounts["Warm"] ?? 0,
       statusBreakdown: leadStatusCounts,
+      outcomeBreakdown: leadOutcomeCounts,
+      leadsWon: leadOutcomeCounts["Won!"] ?? leadOutcomeCounts["Won"] ?? 0,
       sourceBreakdown: leadSourceCounts,
+      typeBreakdown: leadTypeCounts,
+      locationBreakdown: leadLocationCounts,
+      ownerBreakdown: leadOwnerCounts,
       byMonth: monthCounts(leadsByMonth),
       missed: missedLeads.length,
+      avgLeadScore,
       qaTotal,
       qaPassCount,
       qaPassRate: pct(qaPassCount, qaTotal),
+      qaOutcomes: qaOutcomeCounts,
     };
 
     // =================================================================
     // NATIONAL CONTRACTS
     // =================================================================
-    const msaStatusCounts = countByField(nationalContractsMSA, "Status");
-    const contractsByMonth = groupByMonth(nationalContractsMSA, "Created");
+    const nationalStageCounts = countByField(nationalContractsMSA, "Stages");
+    const nationalPropertyGroupCounts = countByField(nationalContractsMSA, "Property Group");
+    const nationalMachineCompanyCounts = countByField(nationalContractsMSA, "Machine Company");
+    const nationalRevShareCounts = countByField(nationalContractsMSA, "Rev Share Type");
+
+    const nationalProperties = nationalContractsMSA.length;
+    const completeStageCount = nationalStageCounts["Complete"] ??
+                               nationalStageCounts["✅ Complete"] ?? 0;
+    const nationalPipeline = nationalProperties - completeStageCount;
 
     const national = {
       totalMSA: nationalContractsMSA.length,
-      msaStatusBreakdown: msaStatusCounts,
+      nationalProperties,
+      nationalByStage: nationalStageCounts,
+      nationalByPropertyGroup: nationalPropertyGroupCounts,
+      nationalByMachineCompany: nationalMachineCompanyCounts,
+      nationalByRevShare: nationalRevShareCounts,
       completeContracts: completeNational.length,
-      byMonth: monthCounts(contractsByMonth),
-      completionRate: pct(completeNational.length, nationalContractsMSA.length),
+      completeStageCount,
+      pipelineCount: nationalPipeline,
+      propertyGroups: Object.keys(nationalPropertyGroupCounts).length,
+      completionRate: pct(completeStageCount, nationalProperties),
     };
 
     // =================================================================
-    // REVENUE (refunds perspective)
+    // REVENUE (refunds perspective + client revenue)
     // =================================================================
-    const avgRefund = avgField(refunds, "Amount");
+    const avgRefund = avgField(refunds, "Refund Amount") || avgField(refunds, "Amount");
     const refundsByMonth = groupByMonth(refunds, "Created");
-    const refundReasons = countByField(refunds, "Reason");
+    const refundReasons = countByField(refunds, "Main Complaint") ||
+                         countByField(refunds, "Reason");
+    const refundOutcomes = countByField(refunds, "Outcome");
+    const refundBySalesperson = countByField(refunds, "Salesperson");
+    const avgMachineVelocity = avgField(clients, "Total Machine Velocity Score");
 
     const revenue = {
       totalRefunds: refunds.length,
@@ -207,16 +349,25 @@ export async function GET() {
       refundsByMonth: Object.fromEntries(
         Object.entries(refundsByMonth).map(([m, recs]) => [
           m,
-          { count: recs.length, amount: sumField(recs, "Amount") },
+          { count: recs.length, amount: sumField(recs, "Refund Amount") || sumField(recs, "Amount") },
         ])
       ),
       refundReasons,
+      refundOutcomes,
+      refundBySalesperson,
+      totalRevenue: overview.totalRevenueRaw,
+      totalNetRevenue: overview.totalNetRevenueRaw,
+      avgRevenuePerClient: clients.length > 0 ? Math.round(totalRevenue / clients.length) : 0,
+      totalMachines,
+      avgMachineVelocity: Math.round(avgMachineVelocity * 10) / 10,
+      membershipRevenue: membershipLevelCounts,
     };
 
     // =================================================================
     // QUALITY
     // =================================================================
-    const dqTypeCounts = countByField(dataQuality, "Issue Type");
+    const dqTypeCounts = countByField(dataQuality, "Issue Type") ||
+                        countByField(dataQuality, "Category");
     const dqStatusCounts = countByField(dataQuality, "Status");
     const recentDQ = recentRecords(dataQuality, "Created", 7);
 

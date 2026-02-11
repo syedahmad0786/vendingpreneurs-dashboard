@@ -158,7 +158,14 @@ export default function LeadsPage() {
         ]);
 
         const statsData = await statsRes.json();
-        setStats(statsData);
+        // API returns nested { leads: { sourceBreakdown, ... } }
+        const leadsStats = statsData.leads ?? {};
+        setStats({
+          hotLeads: leadsStats.hotLeads ?? 0,
+          warmLeads: leadsStats.warmLeadsCount ?? 0,
+          leadsWon: leadsStats.leadsWon ?? 0,
+          leadsBySource: leadsStats.sourceBreakdown ?? {},
+        });
 
         const leadsData = await leadsRes.json();
         if (leadsData.records) {

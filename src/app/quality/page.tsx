@@ -124,7 +124,13 @@ export default function QualityPage() {
     fetch("/api/stats")
       .then((res) => res.json())
       .then((data) => {
-        setStats(data);
+        // API returns nested { overview, quality, ... }
+        const q = data.quality ?? {};
+        const ov = data.overview ?? {};
+        setStats({
+          dataQualityIssues: q.dataQualityIssues ?? ov.dataQualityIssues ?? 0,
+          missedLeadsCount: q.missedLeads ?? ov.missedLeads ?? 0,
+        });
         setLoading(false);
       })
       .catch(() => setLoading(false));
