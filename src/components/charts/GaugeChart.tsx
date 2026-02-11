@@ -62,7 +62,7 @@ export default function GaugeChart({
 
   if (max <= 0) {
     return (
-      <div className="glass-card p-6">
+      <div className="glass-card p-6 sm:p-7">
         {title && (
           <h3 className="text-sm font-semibold text-text-secondary mb-4">
             {title}
@@ -80,7 +80,7 @@ export default function GaugeChart({
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="glass-card p-6"
+      className="glass-card p-6 sm:p-7"
     >
       {title && (
         <h3 className="text-sm font-semibold text-text-secondary mb-4">
@@ -133,7 +133,7 @@ export default function GaugeChart({
             textAnchor="middle"
             dominantBaseline="middle"
             fill="#F1F5F9"
-            fontSize="30"
+            fontSize="26"
             fontWeight="700"
             fontFamily="Inter, sans-serif"
           >
@@ -172,7 +172,7 @@ export default function GaugeChart({
       </div>
 
       {/* Label below gauge */}
-      <p className="text-center text-sm font-medium text-text-secondary mt-2">
+      <p className="text-center text-sm font-medium text-text-secondary mt-3">
         {label}
       </p>
       <p className="text-center text-xs text-text-muted">

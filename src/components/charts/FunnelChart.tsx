@@ -28,7 +28,7 @@ interface FunnelChartProps {
 export default function FunnelChart({ data, title }: FunnelChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="glass-card p-6">
+      <div className="glass-card p-6 sm:p-7">
         {title && (
           <h3 className="text-sm font-semibold text-text-secondary mb-4">
             {title}
@@ -48,7 +48,7 @@ export default function FunnelChart({ data, title }: FunnelChartProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="glass-card p-6"
+      className="glass-card p-6 sm:p-7"
     >
       {title && (
         <h3 className="text-sm font-semibold text-text-secondary mb-6">
@@ -111,7 +111,7 @@ export default function FunnelChart({ data, title }: FunnelChartProps) {
                       opacity: 1 - index * 0.06,
                     }}
                   >
-                    <span className="text-sm font-bold text-white whitespace-nowrap">
+                    <span className="text-xs sm:text-sm font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis">
                       {stage.value.toLocaleString()}
                     </span>
                   </div>
@@ -119,7 +119,7 @@ export default function FunnelChart({ data, title }: FunnelChartProps) {
 
                 {/* Label */}
                 <span
-                  className="text-sm whitespace-nowrap min-w-[80px]"
+                  className="text-sm whitespace-nowrap shrink-0 min-w-[80px] max-w-[100px] truncate"
                   style={{ color: "#94A3B8" }}
                 >
                   {stage.name}

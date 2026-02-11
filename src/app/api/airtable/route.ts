@@ -85,10 +85,14 @@ export async function GET(request: NextRequest) {
       view,
     });
 
-    return NextResponse.json({
-      records,
-      count: records.length,
-    });
+    return NextResponse.json(
+      { records, count: records.length },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=120, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error) {
     console.error("[airtable proxy] Error:", error);
     const message =

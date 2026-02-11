@@ -37,7 +37,7 @@ import type { AirtableRecord } from "@/lib/utils";
 export const maxDuration = 60;
 
 const STATS_CACHE_KEY = "dashboard:stats:all";
-const STATS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const STATS_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
 /** Safely fetch a table -- returns [] on error so one failure
  *  does not break the entire stats endpoint. */
@@ -65,12 +65,22 @@ function monthCounts(
 // -----------------------------------------------------------------------
 // GET handler
 // -----------------------------------------------------------------------
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Return cached stats if available
-    const cached = cache.get<Record<string, unknown>>(STATS_CACHE_KEY);
-    if (cached) {
-      return NextResponse.json(cached);
+    // Check for refresh bypass
+    const { searchParams } = new URL(request.url);
+    const forceRefresh = searchParams.get("refresh") === "true";
+
+    // Return cached stats if available (unless force refresh)
+    if (!forceRefresh) {
+      const cached = cache.get<Record<string, unknown>>(STATS_CACHE_KEY);
+      if (cached) {
+        return NextResponse.json(cached, {
+          headers: {
+            "Cache-Control": "public, s-maxage=120, stale-while-revalidate=60",
+          },
+        });
+      }
     }
 
     // Fetch all 12 tables in parallel
@@ -421,7 +431,11 @@ export async function GET() {
     // Cache the assembled stats
     cache.set(STATS_CACHE_KEY, stats, STATS_TTL_MS);
 
-    return NextResponse.json(stats);
+    return NextResponse.json(stats, {
+      headers: {
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=60",
+      },
+    });
   } catch (error) {
     console.error("[stats] Failed to build dashboard stats:", error);
     const message =

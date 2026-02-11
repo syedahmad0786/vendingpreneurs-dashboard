@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 
 const inter = Inter({
@@ -24,13 +23,18 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
-        <div className="flex min-h-screen">
-          <Sidebar />          <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
-            <Header />
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
-              {children}
-            </main>
+        <div className="min-h-screen relative">
+          {/* Ambient background orbs — layout level */}
+          <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+            <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-blue-600/[0.07] blur-[120px]" />
+            <div className="absolute top-1/3 -right-40 h-[400px] w-[400px] rounded-full bg-purple-600/[0.07] blur-[120px]" />
+            <div className="absolute -bottom-40 left-1/3 h-[400px] w-[400px] rounded-full bg-emerald-600/[0.05] blur-[120px]" />
           </div>
+
+          <Header />
+          <main className="relative z-10 w-full max-w-[1600px] mx-auto px-6 sm:px-8 lg:px-10 py-8 overflow-x-hidden">
+            {children}
+          </main>
         </div>
       </body>
     </html>

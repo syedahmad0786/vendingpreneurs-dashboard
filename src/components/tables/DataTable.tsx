@@ -150,7 +150,7 @@ export default function DataTable({
     >
       {/* Search bar */}
       {searchable && (
-        <div className="p-4 border-b border-white/5">
+        <div className="p-5 border-b border-white/5">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
             <input
@@ -176,7 +176,7 @@ export default function DataTable({
                 <th
                   key={col.key}
                   onClick={() => col.sortable && handleSort(col.key)}
-                  className={`px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap ${
+                  className={`px-5 py-3.5 text-left text-xs font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap ${
                     col.sortable
                       ? "cursor-pointer select-none group hover:text-text-secondary"
                       : ""
@@ -189,7 +189,7 @@ export default function DataTable({
                 </th>
               ))}
               {actions && (
-                <th className="px-4 py-3 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
+                <th className="px-5 py-3.5 text-right text-xs font-semibold text-text-muted uppercase tracking-wider">
                   Actions
                 </th>
               )}
@@ -221,7 +221,7 @@ export default function DataTable({
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className="px-4 py-3 text-sm text-text-secondary whitespace-nowrap"
+                      className="px-5 py-3.5 text-sm text-text-secondary max-w-[200px] truncate"
                     >
                       {col.render
                         ? col.render(row[col.key], row)
@@ -231,7 +231,7 @@ export default function DataTable({
                     </td>
                   ))}
                   {actions && (
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-5 py-3.5 text-right">
                       <div
                         className="flex items-center justify-end gap-2"
                         onClick={(e) => e.stopPropagation()}
@@ -249,8 +249,8 @@ export default function DataTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
-          <p className="text-xs text-text-muted">
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-white/5">
+          <p className="text-xs text-text-muted whitespace-nowrap">
             Showing {(safePage - 1) * pageSize + 1}
             {" - "}
             {Math.min(safePage * pageSize, sorted.length)} of {sorted.length}
@@ -278,7 +278,7 @@ export default function DataTable({
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  className={`w-9 h-9 rounded-lg text-xs font-medium transition-all duration-200 ${
                     page === safePage
                       ? "bg-primary text-white"
                       : "text-text-muted hover:text-text-primary hover:bg-white/5"

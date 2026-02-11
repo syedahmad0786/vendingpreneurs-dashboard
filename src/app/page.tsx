@@ -149,17 +149,10 @@ function AnimatedNumber({
   format?: "number" | "currency" | "percent";
 }) {
   const motionVal = useMotionValue(0);
-  const spring = useSpring(motionVal, {
-    stiffness: 50,
-    damping: 20,
-  });
+  const spring = useSpring(motionVal, { stiffness: 50, damping: 20 });
   const display = useTransform(spring, (v: number) => {
-    if (format === "currency") {
-      return "$" + Math.round(v).toLocaleString();
-    }
-    if (format === "percent") {
-      return v.toFixed(1) + "%";
-    }
+    if (format === "currency") return "$" + Math.round(v).toLocaleString();
+    if (format === "percent") return v.toFixed(1) + "%";
     return Math.round(v).toLocaleString();
   });
 
@@ -175,9 +168,7 @@ function AnimatedNumber({
 // ---------------------------------------------------------------------------
 function Skeleton({ className = "" }: { className?: string }) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl bg-white/5 ${className}`}
-    >
+    <div className={`relative overflow-hidden rounded-xl bg-white/5 ${className}`}>
       <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
     </div>
   );
@@ -219,9 +210,7 @@ function StatusBadge({ status }: { status: string }) {
   };
   const colors = colorMap[status] || colorMap["Paused"];
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${colors}`}
-    >
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${colors}`}>
       {status}
     </span>
   );
@@ -238,9 +227,7 @@ function TierBadge({ tier }: { tier: string }) {
   };
   const colors = colorMap[tier] || "bg-gray-500/20 text-gray-400";
   return (
-    <span
-      className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${colors}`}
-    >
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${colors}`}>
       {tier}
     </span>
   );
@@ -282,14 +269,7 @@ function renderCustomPieLabel(props: any) {
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   if (percent < 0.05) return null;
   return (
-    <text
-      x={x}
-      y={y}
-      fill="white"
-      textAnchor="middle"
-      dominantBaseline="central"
-      className="text-xs font-medium"
-    >
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" className="text-xs font-medium">
       {`${(percent * 100).toFixed(0)}%`}
     </text>
   );
@@ -298,7 +278,6 @@ function renderCustomPieLabel(props: any) {
 // ---------------------------------------------------------------------------
 // Main Page Component
 // ---------------------------------------------------------------------------
-// Status → color map for donut chart
 const STATUS_COLORS: Record<string, string> = {
   Active: "#10B981",
   "Doing Fine": "#10B981",
@@ -328,7 +307,6 @@ function transformApiToStats(api: any): StatsData {
   const onboarding = api.onboarding ?? {};
   const clients = api.clients ?? {};
 
-  // Build client status donut data
   const statusBreakdown: Record<string, number> = overview.clientStatusBreakdown ?? {};
   const clientStatusDistribution = Object.entries(statusBreakdown).map(
     ([name, value]) => ({
@@ -338,7 +316,6 @@ function transformApiToStats(api: any): StatsData {
     })
   );
 
-  // Build program stage pipeline from clients byMonth or status
   const stagePipeline = Object.entries(
     clients.statusBreakdown ?? overview.clientStatusBreakdown ?? {}
   )
@@ -349,7 +326,6 @@ function transformApiToStats(api: any): StatsData {
       color: STAGE_COLORS[stage] ?? "#6B7280",
     }));
 
-  // Build new clients over time from clients.byMonth
   const byMonth: Record<string, number> = clients.byMonth ?? {};
   const newClientsOverTime = Object.entries(byMonth)
     .sort()
@@ -359,10 +335,10 @@ function transformApiToStats(api: any): StatsData {
   return {
     totalActiveClients: overview.activeClients ?? overview.totalClients ?? 0,
     currentlyOnboarding: onboarding.total ?? overview.totalOnboarding ?? 0,
-    machinesPlaced: 0, // not available in current API
+    machinesPlaced: 0,
     totalMonthlyRevenue: api.revenue?.totalRefundAmountRaw ?? 0,
     onboardingErrorRate: onboarding.errorRate ?? 0,
-    trends: DEFAULT_STATS.trends, // trends not computed yet
+    trends: DEFAULT_STATS.trends,
     clientStatusDistribution:
       clientStatusDistribution.length > 0
         ? clientStatusDistribution
@@ -378,40 +354,16 @@ function transformApiToStats(api: any): StatsData {
     recentOnboarding: DEFAULT_STATS.recentOnboarding,
     alerts: [
       ...(overview.onboardingErrors > 0
-        ? [
-            {
-              type: "error" as const,
-              message: `${overview.onboardingErrors} onboarding errors need attention`,
-              count: overview.onboardingErrors,
-            },
-          ]
+        ? [{ type: "error" as const, message: `${overview.onboardingErrors} onboarding errors need attention`, count: overview.onboardingErrors }]
         : []),
       ...(overview.dataQualityIssues > 0
-        ? [
-            {
-              type: "warning" as const,
-              message: `${overview.dataQualityIssues} data quality issues detected`,
-              count: overview.dataQualityIssues,
-            },
-          ]
+        ? [{ type: "warning" as const, message: `${overview.dataQualityIssues} data quality issues detected`, count: overview.dataQualityIssues }]
         : []),
       ...(overview.missedLeads > 0
-        ? [
-            {
-              type: "warning" as const,
-              message: `${overview.missedLeads} missed leads found in CRM audit`,
-              count: overview.missedLeads,
-            },
-          ]
+        ? [{ type: "warning" as const, message: `${overview.missedLeads} missed leads found in CRM audit`, count: overview.missedLeads }]
         : []),
       ...(overview.totalRefunds > 0
-        ? [
-            {
-              type: "info" as const,
-              message: `${overview.totalRefunds} refund requests (${overview.refundAmount ?? "$0"})`,
-              count: overview.totalRefunds,
-            },
-          ]
+        ? [{ type: "info" as const, message: `${overview.totalRefunds} refund requests (${overview.refundAmount ?? "$0"})`, count: overview.totalRefunds }]
         : []),
     ],
   };
@@ -426,8 +378,6 @@ export default function ExecutiveOverview() {
     fetch("/api/stats")
       .then((res) => res.json())
       .then((data) => {
-        // API returns nested { overview, onboarding, clients, ... }
-        // Transform to flat StatsData shape
         if (data.overview) {
           setStats(transformApiToStats(data));
         } else {
@@ -448,21 +398,21 @@ export default function ExecutiveOverview() {
     [data.programStagePipeline]
   );
 
-  // Animation variants
+  // Animation variants — reduced delays for snappier feel
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: { staggerChildren: 0.1 },
+      transition: { staggerChildren: 0.06 },
     },
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 24 },
+    hidden: { opacity: 0, y: 20 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+      transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
     },
   };
 
@@ -555,548 +505,424 @@ export default function ExecutiveOverview() {
   };
 
   // -------------------------------------------------------------------------
-  // Render
+  // Render — no outer wrapper, layout handles bg + container
   // -------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#0A0F1E] text-white font-sans">
-      {/* Ambient background effects */}
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-blue-600/[0.08] blur-[120px]" />
-        <div className="absolute top-1/3 -right-40 h-[400px] w-[400px] rounded-full bg-purple-600/[0.08] blur-[120px]" />
-        <div className="absolute -bottom-40 left-1/3 h-[400px] w-[400px] rounded-full bg-emerald-600/[0.06] blur-[120px]" />
-      </div>
+    <div className="space-y-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+                Vendingpreneurs
+              </h1>
+            </div>
+            <p className="text-sm text-text-muted ml-[52px] leading-snug">
+              Executive Overview Dashboard
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-400 backdrop-blur-xl">
+              <Activity className="h-4 w-4 text-emerald-400" />
+              <span className="text-emerald-400 font-medium">Live</span>
+              <span className="ml-1">
+                {new Date().toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
-      <div className="relative z-10 mx-auto max-w-[1600px] px-6 py-8">
-        {/* Header */}
+      {/* ======= ROW 1: Hero KPI Metric Cards ======= */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-8"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5"
         >
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600">
-                  <Zap className="h-5 w-5 text-white" />
-                </div>
-                <h1 className="text-3xl font-bold tracking-tight">
-                  Vendingpreneurs
-                </h1>
-              </div>
-              <p className="text-gray-400 mt-1 ml-[52px]">
-                Executive Overview Dashboard
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-400 backdrop-blur-xl">
-                <Activity className="h-4 w-4 text-emerald-400" />
-                <span className="text-emerald-400 font-medium">Live</span>
-                <span className="ml-1">
-                  {new Date().toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ======= ROW 1: Hero KPI Metric Cards ======= */}
-        {loading ? (
-          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
-          >
-            {kpis.map((kpi) => {
-              const Icon = kpi.icon;
-              const trendPositive = kpi.trend >= 0;
-              const isGood =
-                kpi.label === "Onboarding Error Rate"
-                  ? !trendPositive
-                  : trendPositive;
-              return (
-                <motion.div
-                  key={kpi.label}
-                  variants={itemVariants}
-                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl transition-colors hover:border-white/20 hover:bg-white/[0.07]"
-                >
-                  {/* Glow accent */}
-                  <div
-                    className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-20 blur-2xl transition-opacity group-hover:opacity-30"
-                    style={{ backgroundColor: kpi.color }}
-                  />
-                  <div className="relative flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-gray-400">
-                        {kpi.label}
-                      </p>
-                      <p className="text-3xl font-bold tracking-tight">
-                        <AnimatedNumber
-                          value={kpi.value}
-                          format={kpi.format}
-                        />
-                      </p>
-                      <div className="flex items-center gap-2 pt-1">
-                        <span
-                          className={`flex items-center gap-0.5 text-xs font-medium ${
-                            isGood ? "text-emerald-400" : "text-red-400"
-                          }`}
-                        >
-                          {trendPositive ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          {Math.abs(kpi.trend)}%
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {kpi.subtitle}
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${kpi.bgColor}`}
-                    >
-                      <Icon className="h-6 w-6" style={{ color: kpi.color }} />
+          {kpis.map((kpi) => {
+            const Icon = kpi.icon;
+            const trendPositive = kpi.trend >= 0;
+            const isGood =
+              kpi.label === "Onboarding Error Rate"
+                ? !trendPositive
+                : trendPositive;
+            return (
+              <motion.div
+                key={kpi.label}
+                variants={itemVariants}
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl transition-colors hover:border-white/20 hover:bg-white/[0.07]"
+              >
+                <div
+                  className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-20 blur-2xl transition-opacity group-hover:opacity-30"
+                  style={{ backgroundColor: kpi.color }}
+                />
+                <div className="relative flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-400 leading-snug">{kpi.label}</p>
+                    <p className="text-3xl font-bold tracking-tight">
+                      <AnimatedNumber value={kpi.value} format={kpi.format} />
+                    </p>
+                    <div className="flex items-center gap-3 flex-wrap pt-1.5">
+                      <span className={`flex items-center gap-0.5 text-xs font-medium ${isGood ? "text-emerald-400" : "text-red-400"}`}>
+                        {trendPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                        {Math.abs(kpi.trend)}%
+                      </span>
+                      <span className="text-xs text-gray-500">{kpi.subtitle}</span>
                     </div>
                   </div>
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${kpi.bgColor}`}>
+                    <Icon className="h-6 w-6" style={{ color: kpi.color }} />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      )}
+
+      {/* ======= ROW 2: Pie Chart + Funnel Pipeline ======= */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+          <SkeletonChart />
+          <SkeletonChart />
+        </div>
+      ) : (
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
+        >
+          {/* Client Status Distribution */}
+          <motion.div
+            variants={itemVariants}
+            className="rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-7 backdrop-blur-xl"
+          >
+            <h3 className="mb-5 text-lg font-semibold text-gray-100">
+              Client Status Distribution
+            </h3>
+            <div className="flex flex-col items-center">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={data.clientStatusDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={110}
+                    paddingAngle={3}
+                    dataKey="value"
+                    strokeWidth={0}
+                    label={renderCustomPieLabel}
+                    labelLine={false}
+                    animationBegin={100}
+                    animationDuration={800}
+                  >
+                    {data.clientStatusDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const item = payload[0];
+                      return (
+                        <div className="rounded-lg border border-white/10 bg-[#0A0F1E]/95 px-4 py-2 text-sm shadow-xl backdrop-blur-xl">
+                          <p className="text-gray-400">{item.name}</p>
+                          <p className="text-lg font-semibold text-white">
+                            {String(item.value)} clients
+                          </p>
+                        </div>
+                      );
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
+                {data.clientStatusDistribution.map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                    <span className="text-xs text-gray-400">
+                      {entry.name}{" "}
+                      <span className="font-medium text-gray-300">({entry.value})</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Program Stage Pipeline (Funnel) */}
+          <motion.div
+            variants={itemVariants}
+            className="rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-7 backdrop-blur-xl"
+          >
+            <h3 className="mb-5 text-lg font-semibold text-gray-100">
+              Program Stage Pipeline
+            </h3>
+            <div className="space-y-3">
+              {data.programStagePipeline.map((stage, index) => {
+                const widthPercent = Math.max((stage.count / pipelineMax) * 100, 8);
+                return (
+                  <motion.div
+                    key={stage.stage}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + index * 0.04, duration: 0.4 }}
+                    className="group"
+                  >
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-sm text-gray-400">{stage.stage}</span>
+                      <span className="text-sm font-semibold text-gray-200">{stage.count}</span>
+                    </div>
+                    <div className="relative h-8 w-full overflow-hidden rounded-lg bg-white/5">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${widthPercent}%` }}
+                        transition={{ delay: 0.15 + index * 0.04, duration: 0.6, ease: "easeOut" }}
+                        className="absolute inset-y-0 left-0 flex items-center rounded-lg px-3"
+                        style={{ background: `linear-gradient(90deg, ${stage.color}CC, ${stage.color}88)` }}
+                      >
+                        <span className="text-xs font-medium text-white/90 whitespace-nowrap">
+                          {stage.count} clients
+                        </span>
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-1 text-gray-500">
+              <span className="text-xs">Intake</span>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <ChevronRight key={i} className="h-3 w-3" />
+              ))}
+              <span className="text-xs">Scaling</span>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* ======= ROW 3: Area Chart + Recent Onboarding ======= */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+          <SkeletonChart />
+          <SkeletonChart />
+        </div>
+      ) : (
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
+        >
+          {/* New Clients Over Time */}
+          <motion.div
+            variants={itemVariants}
+            className="rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-7 backdrop-blur-xl"
+          >
+            <h3 className="mb-5 text-lg font-semibold text-gray-100">
+              New Clients Over Time
+            </h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={data.newClientsOverTime} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="clientsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#6B7280", fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#6B7280", fontSize: 12 }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="clients"
+                  stroke="#3B82F6"
+                  strokeWidth={2.5}
+                  fill="url(#clientsGradient)"
+                  animationBegin={200}
+                  animationDuration={800}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </motion.div>
+
+          {/* Recent Onboarding Activity */}
+          <motion.div
+            variants={itemVariants}
+            className="flex flex-col rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl"
+          >
+            <div className="flex items-center justify-between p-6 sm:p-7 pb-3 sm:pb-4">
+              <h3 className="text-lg font-semibold text-gray-100">
+                Recent Onboarding Activity
+              </h3>
+              <div className="flex items-center gap-1.5 text-sm text-gray-400">
+                <Clock className="h-4 w-4" />
+                Live Feed
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 pb-6 max-h-[320px]">
+              <div className="space-y-2">
+                {data.recentOnboarding.map((entry, index) => (
+                  <motion.div
+                    key={entry.id}
+                    initial={{ opacity: 0, x: 16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + index * 0.03, duration: 0.3 }}
+                    className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] p-4 transition-colors hover:border-white/10 hover:bg-white/[0.06]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-sm font-semibold text-blue-400">
+                        {entry.name.split(" ").map((n) => n[0]).join("")}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-200 min-w-0 truncate">{entry.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <TierBadge tier={entry.tier} />
+                          <span className="text-xs text-gray-500">
+                            {new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <StatusBadge status={entry.status} />
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* ======= ROW 4: Active Alerts Panel ======= */}
+      {loading ? (
+        <div>
+          <Skeleton className="h-6 w-40 mb-4" />
+          <div className="flex gap-5 overflow-hidden">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 w-72 shrink-0 rounded-2xl" />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Bell className="h-5 w-5 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-100">Active Alerts</h3>
+            <span className="rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400">
+              {data.alerts.length}
+            </span>
+          </div>
+          <div className="flex gap-5 overflow-x-auto pb-4">
+            {errorAlerts.map((alert, i) => {
+              const colors = alertColorMap.error;
+              const Icon = alertIconMap.error;
+              return (
+                <motion.div
+                  key={`error-${i}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.35 + i * 0.05 }}
+                  className={`flex min-w-[300px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 sm:p-6 backdrop-blur-xl`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
+                      <Icon className={`h-5 w-5 ${colors.icon}`} />
+                    </div>
+                    <span className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}>{alert.count}</span>
+                  </div>
+                  <p className={`mt-3 text-sm font-medium ${colors.text}`}>{alert.message}</p>
+                  <span className="mt-2 text-xs text-gray-500">Onboarding Error</span>
                 </motion.div>
               );
             })}
-          </motion.div>
-        )}
-
-        {/* ======= ROW 2: Pie Chart + Funnel Pipeline ======= */}
-        {loading ? (
-          <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <SkeletonChart />
-            <SkeletonChart />
-          </div>
-        ) : (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2"
-          >
-            {/* Client Status Distribution */}
-            <motion.div
-              variants={itemVariants}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
-            >
-              <h3 className="mb-4 text-lg font-semibold text-gray-100">
-                Client Status Distribution
-              </h3>
-              <div className="flex flex-col items-center">
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={data.clientStatusDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={110}
-                      paddingAngle={3}
-                      dataKey="value"
-                      strokeWidth={0}
-                      label={renderCustomPieLabel}
-                      labelLine={false}
-                      animationBegin={300}
-                      animationDuration={1200}
-                    >
-                      {data.clientStatusDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const item = payload[0];
-                        return (
-                          <div className="rounded-lg border border-white/10 bg-[#0A0F1E]/95 px-4 py-2 text-sm shadow-xl backdrop-blur-xl">
-                            <p className="text-gray-400">{item.name}</p>
-                            <p className="text-lg font-semibold text-white">
-                              {String(item.value)} clients
-                            </p>
-                          </div>
-                        );
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                {/* Custom Legend */}
-                <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
-                  {data.clientStatusDistribution.map((entry) => (
-                    <div key={entry.name} className="flex items-center gap-2">
-                      <div
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: entry.color }}
-                      />
-                      <span className="text-xs text-gray-400">
-                        {entry.name}{" "}
-                        <span className="font-medium text-gray-300">
-                          ({entry.value})
-                        </span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Program Stage Pipeline (Funnel) */}
-            <motion.div
-              variants={itemVariants}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
-            >
-              <h3 className="mb-4 text-lg font-semibold text-gray-100">
-                Program Stage Pipeline
-              </h3>
-              <div className="space-y-3">
-                {data.programStagePipeline.map((stage, index) => {
-                  const widthPercent = Math.max(
-                    (stage.count / pipelineMax) * 100,
-                    8
-                  );
-                  return (
-                    <motion.div
-                      key={stage.stage}
-                      initial={{ opacity: 0, x: -30 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{
-                        delay: 0.4 + index * 0.08,
-                        duration: 0.5,
-                      }}
-                      className="group"
-                    >
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-sm text-gray-400">
-                          {stage.stage}
-                        </span>
-                        <span className="text-sm font-semibold text-gray-200">
-                          {stage.count}
-                        </span>
-                      </div>
-                      <div className="relative h-8 w-full overflow-hidden rounded-lg bg-white/5">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${widthPercent}%` }}
-                          transition={{
-                            delay: 0.6 + index * 0.08,
-                            duration: 0.8,
-                            ease: "easeOut",
-                          }}
-                          className="absolute inset-y-0 left-0 flex items-center rounded-lg px-3"
-                          style={{
-                            background: `linear-gradient(90deg, ${stage.color}CC, ${stage.color}88)`,
-                          }}
-                        >
-                          <span className="text-xs font-medium text-white/90 whitespace-nowrap">
-                            {stage.count} clients
-                          </span>
-                        </motion.div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-              {/* Funnel arrow indicators */}
-              <div className="mt-4 flex items-center justify-center gap-1 text-gray-500">
-                <span className="text-xs">Intake</span>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <ChevronRight key={i} className="h-3 w-3" />
-                ))}
-                <span className="text-xs">Scaling</span>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* ======= ROW 3: Area Chart + Recent Onboarding ======= */}
-        {loading ? (
-          <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <SkeletonChart />
-            <SkeletonChart />
-          </div>
-        ) : (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2"
-          >
-            {/* New Clients Over Time */}
-            <motion.div
-              variants={itemVariants}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
-            >
-              <h3 className="mb-4 text-lg font-semibold text-gray-100">
-                New Clients Over Time
-              </h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart
-                  data={data.newClientsOverTime}
-                  margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+            {warningAlerts.map((alert, i) => {
+              const colors = alertColorMap.warning;
+              const Icon = alertIconMap.warning;
+              return (
+                <motion.div
+                  key={`warning-${i}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.35 + (errorAlerts.length + i) * 0.05 }}
+                  className={`flex min-w-[300px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 sm:p-6 backdrop-blur-xl`}
                 >
-                  <defs>
-                    <linearGradient
-                      id="clientsGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} />
-                      <stop
-                        offset="100%"
-                        stopColor="#3B82F6"
-                        stopOpacity={0.0}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="rgba(255,255,255,0.05)"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="month"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#6B7280", fontSize: 12 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#6B7280", fontSize: 12 }}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="clients"
-                    stroke="#3B82F6"
-                    strokeWidth={2.5}
-                    fill="url(#clientsGradient)"
-                    animationBegin={500}
-                    animationDuration={1500}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </motion.div>
-
-            {/* Recent Onboarding Activity */}
-            <motion.div
-              variants={itemVariants}
-              className="flex flex-col rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl"
-            >
-              <div className="flex items-center justify-between p-6 pb-3">
-                <h3 className="text-lg font-semibold text-gray-100">
-                  Recent Onboarding Activity
-                </h3>
-                <div className="flex items-center gap-1.5 text-sm text-gray-400">
-                  <Clock className="h-4 w-4" />
-                  Live Feed
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto px-6 pb-6 max-h-[320px]">
-                <div className="space-y-2">
-                  {data.recentOnboarding.map((entry, index) => (
-                    <motion.div
-                      key={entry.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{
-                        delay: 0.6 + index * 0.06,
-                        duration: 0.4,
-                      }}
-                      className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] p-3 transition-colors hover:border-white/10 hover:bg-white/[0.06]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-sm font-semibold text-blue-400">
-                          {entry.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-200">
-                            {entry.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <TierBadge tier={entry.tier} />
-                            <span className="text-xs text-gray-500">
-                              {new Date(entry.date).toLocaleDateString(
-                                "en-US",
-                                { month: "short", day: "numeric" }
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <StatusBadge status={entry.status} />
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* ======= ROW 4: Active Alerts Panel ======= */}
-        {loading ? (
-          <div className="mb-8">
-            <Skeleton className="h-6 w-40 mb-4" />
-            <div className="flex gap-4 overflow-hidden">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-28 w-72 shrink-0 rounded-2xl" />
-              ))}
-            </div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
+                      <Icon className={`h-5 w-5 ${colors.icon}`} />
+                    </div>
+                    <span className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}>{alert.count}</span>
+                  </div>
+                  <p className={`mt-3 text-sm font-medium ${colors.text}`}>{alert.message}</p>
+                  <span className="mt-2 text-xs text-gray-500">Campaign Warning</span>
+                </motion.div>
+              );
+            })}
+            {infoAlerts.map((alert, i) => {
+              const colors = alertColorMap.info;
+              const Icon = alertIconMap.info;
+              return (
+                <motion.div
+                  key={`info-${i}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.35 + (errorAlerts.length + warningAlerts.length + i) * 0.05 }}
+                  className={`flex min-w-[300px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 sm:p-6 backdrop-blur-xl`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
+                      <Icon className={`h-5 w-5 ${colors.icon}`} />
+                    </div>
+                    <span className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}>{alert.count}</span>
+                  </div>
+                  <p className={`mt-3 text-sm font-medium ${colors.text}`}>{alert.message}</p>
+                  <span className="mt-2 text-xs text-gray-500">Upcoming Action</span>
+                </motion.div>
+              );
+            })}
           </div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
-            className="mb-8"
-          >
-            <div className="mb-4 flex items-center gap-2">
-              <Bell className="h-5 w-5 text-gray-400" />
-              <h3 className="text-lg font-semibold text-gray-100">
-                Active Alerts
-              </h3>
-              <span className="rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400">
-                {data.alerts.length}
-              </span>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {/* Error alerts */}
-              {errorAlerts.map((alert, i) => {
-                const colors = alertColorMap.error;
-                const Icon = alertIconMap.error;
-                return (
-                  <motion.div
-                    key={`error-${i}`}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.9 + i * 0.1 }}
-                    className={`flex min-w-[280px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 backdrop-blur-xl`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
-                        <Icon className={`h-5 w-5 ${colors.icon}`} />
-                      </div>
-                      <span
-                        className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}
-                      >
-                        {alert.count}
-                      </span>
-                    </div>
-                    <p className={`mt-3 text-sm font-medium ${colors.text}`}>
-                      {alert.message}
-                    </p>
-                    <span className="mt-2 text-xs text-gray-500">
-                      Onboarding Error
-                    </span>
-                  </motion.div>
-                );
-              })}
-              {/* Warning alerts */}
-              {warningAlerts.map((alert, i) => {
-                const colors = alertColorMap.warning;
-                const Icon = alertIconMap.warning;
-                return (
-                  <motion.div
-                    key={`warning-${i}`}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{
-                      delay: 0.9 + (errorAlerts.length + i) * 0.1,
-                    }}
-                    className={`flex min-w-[280px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 backdrop-blur-xl`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                        <Icon className={`h-5 w-5 ${colors.icon}`} />
-                      </div>
-                      <span
-                        className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}
-                      >
-                        {alert.count}
-                      </span>
-                    </div>
-                    <p className={`mt-3 text-sm font-medium ${colors.text}`}>
-                      {alert.message}
-                    </p>
-                    <span className="mt-2 text-xs text-gray-500">
-                      Campaign Warning
-                    </span>
-                  </motion.div>
-                );
-              })}
-              {/* Info alerts */}
-              {infoAlerts.map((alert, i) => {
-                const colors = alertColorMap.info;
-                const Icon = alertIconMap.info;
-                return (
-                  <motion.div
-                    key={`info-${i}`}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{
-                      delay:
-                        0.9 +
-                        (errorAlerts.length + warningAlerts.length + i) * 0.1,
-                    }}
-                    className={`flex min-w-[280px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 backdrop-blur-xl`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
-                        <Icon className={`h-5 w-5 ${colors.icon}`} />
-                      </div>
-                      <span
-                        className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}
-                      >
-                        {alert.count}
-                      </span>
-                    </div>
-                    <p className={`mt-3 text-sm font-medium ${colors.text}`}>
-                      {alert.message}
-                    </p>
-                    <span className="mt-2 text-xs text-gray-500">
-                      Upcoming Action
-                    </span>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          className="border-t border-white/5 pt-6 pb-4 text-center"
-        >
-          <p className="text-xs text-gray-600">
-            Vendingpreneurs Executive Dashboard &middot; Data refreshes every 5
-            minutes &middot; All metrics are live
-          </p>
         </motion.div>
-      </div>
+      )}
+
+      {/* Footer */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="border-t border-white/5 pt-6 pb-4 text-center"
+      >
+        <p className="text-xs text-gray-600">
+          Vendingpreneurs Executive Dashboard &middot; Data refreshes every 2
+          minutes &middot; All metrics are live
+        </p>
+      </motion.div>
     </div>
   );
 }

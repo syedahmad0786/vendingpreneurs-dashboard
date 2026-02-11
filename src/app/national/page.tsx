@@ -93,16 +93,16 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1 },
+    transition: { staggerChildren: 0.06 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
   },
 };
 
@@ -212,7 +212,7 @@ export default function NationalContractsPage() {
             "bg-gray-500/20 text-gray-400 border-gray-500/30";
           return stage ? (
             <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}
+              className={`inline-flex items-center shrink-0 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}
             >
               {stage}
             </span>
@@ -268,7 +268,7 @@ export default function NationalContractsPage() {
 
       {/* ======= ROW 1: KPI Cards ======= */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
@@ -278,7 +278,7 @@ export default function NationalContractsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4"
         >
           <motion.div variants={itemVariants}>
             <MetricCard
@@ -317,7 +317,7 @@ export default function NationalContractsPage() {
 
       {/* ======= ROW 2: Charts ======= */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
           <SkeletonChart />
           <SkeletonChart />
         </div>
@@ -326,7 +326,7 @@ export default function NationalContractsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
         >
           <motion.div variants={itemVariants}>
             <FunnelChart
@@ -349,7 +349,7 @@ export default function NationalContractsPage() {
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6, duration: 0.5 }}
+        transition={{ delay: 0.25, duration: 0.4 }}
       >
         <div className="flex items-center gap-2 mb-4">
           <Activity className="h-5 w-5 text-text-muted" />
@@ -362,7 +362,7 @@ export default function NationalContractsPage() {
         </div>
 
         {tableLoading ? (
-          <div className="glass-card p-6">
+          <div className="glass-card p-6 sm:p-7">
             <Skeleton className="h-8 w-full mb-4" />
             {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-12 w-full mb-2" />

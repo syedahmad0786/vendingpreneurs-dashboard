@@ -65,7 +65,7 @@ export function ResubmitButton({ record, onSuccess }: ResubmitButtonProps) {
       <button
         onClick={handleClick}
         disabled={status === "loading" || status === "success"}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <AnimatePresence mode="wait" initial={false}>
           {status === "loading" ? (
@@ -124,7 +124,7 @@ export function ResubmitButton({ record, onSuccess }: ResubmitButtonProps) {
             initial={{ opacity: 0, y: -4, height: 0 }}
             animate={{ opacity: 1, y: 0, height: "auto" }}
             exit={{ opacity: 0, y: -4, height: 0 }}
-            className={`text-[11px] leading-tight ${
+            className={`text-xs leading-tight ${
               status === "success" ? "text-success" : "text-danger"
             }`}
           >
@@ -158,7 +158,7 @@ export function OpenLeadButton({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary border border-white/10 hover:text-text-primary hover:border-white/20 hover:bg-white/5 transition-all duration-200"
+      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-text-secondary border border-white/10 hover:text-text-primary hover:border-white/20 hover:bg-white/5 transition-all duration-200"
     >
       <ExternalLink className="w-3.5 h-3.5" />
       <span>Open in Airtable</span>

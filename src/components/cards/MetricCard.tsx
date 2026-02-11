@@ -90,7 +90,7 @@ export default function MetricCard({
 
   if (loading) {
     return (
-      <div className="glass-card p-6">
+      <div className="glass-card p-6 sm:p-7">
         <div className="flex items-start justify-between mb-4">
           <div className="skeleton h-4 w-24" />
           <div className="skeleton h-10 w-10 rounded-full" />
@@ -107,10 +107,10 @@ export default function MetricCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
       whileHover={{ scale: 1.02, boxShadow: "0 8px 30px rgba(0,0,0,0.35)" }}
-      className={`glass-card p-6 cursor-default transition-shadow duration-300 ${palette.glow}`}
+      className={`glass-card p-6 sm:p-7 cursor-default transition-shadow duration-300 ${palette.glow}`}
     >
       <div className="flex items-start justify-between mb-4">
-        <h3 className="text-sm font-medium text-text-secondary leading-tight">
+        <h3 className="text-sm font-medium text-text-secondary leading-snug">
           {title}
         </h3>
         {Icon && (

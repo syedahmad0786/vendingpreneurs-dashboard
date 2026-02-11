@@ -81,11 +81,11 @@ const STATUS_COLORS: Record<string, { fill: string; label: string }> = {
 };
 
 const stagger = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 16 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.07, duration: 0.5, ease: "easeOut" as const },
+    transition: { delay: i * 0.04, duration: 0.4, ease: "easeOut" as const },
   }),
 };
 
@@ -143,7 +143,7 @@ function useToasts() {
 
 function GlassCard({ children, className = '', motionIndex = 0 }: { children: React.ReactNode; className?: string; motionIndex?: number }) {
   return (
-    <motion.div custom={motionIndex} initial="hidden" animate="visible" variants={stagger} className={`bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 ${className}`}>
+    <motion.div custom={motionIndex} initial="hidden" animate="visible" variants={stagger} className={`bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 sm:p-7 ${className}`}>
       {children}
     </motion.div>
   );
@@ -171,7 +171,7 @@ function StatusBadge({ status }: { status: string }) {
     Ignored: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || 'bg-white/10 text-white/60 border-white/20'}`}>
+    <span className={`inline-flex items-center shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || 'bg-white/10 text-white/60 border-white/20'}`}>
       {status}
     </span>
   );
@@ -180,7 +180,7 @@ function StatusBadge({ status }: { status: string }) {
 function ErrorTypeBadge({ type }: { type: string }) {
   const color = ERROR_TYPE_COLORS[type] || '#6B7280';
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border" style={{ backgroundColor: `${color}20`, color, borderColor: `${color}50` }}>
+    <span className="inline-flex items-center shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium border" style={{ backgroundColor: `${color}20`, color, borderColor: `${color}50` }}>
       {type}
     </span>
   );
@@ -369,27 +369,26 @@ export default function OnboardingPage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-[#0a0e1a] to-gray-950 text-white">
-      {/* Background effects */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[150px]" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[150px]" />
-      </div>
-
-      <div className="relative z-10 max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="space-y-8">
         {/* Page Header */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Onboarding{' '}
-            <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Deep Dive</span>
-          </h1>
-          <p className="mt-2 text-white/50 text-sm sm:text-base">
-            Track every stage of client onboarding, resolve errors, and monitor completions.
-          </p>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600">
+              <Users className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-text-primary">
+                Onboarding Deep Dive
+              </h1>
+              <p className="text-sm text-text-muted">
+                Track every stage of client onboarding, resolve errors, and monitor completions
+              </p>
+            </div>
+          </div>
         </motion.div>
 
         {/* ── Row 1: KPI Cards ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
           {loadingStats
             ? Array.from({ length: 4 }).map((_, i) => <LoadingCard key={i} />)
             : kpiCards.map((card, i) => (
@@ -409,7 +408,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* ── Row 2: Stage Waterfall + Completion Trend ────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
           {/* Onboarding Stage Waterfall */}
           <GlassCard motionIndex={4}>
             <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Onboarding Stage Waterfall</h2>
@@ -458,7 +457,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* ── Row 3: Errors by Type + Error Status Breakdown ──────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
           {/* Errors by Type (Horizontal Bar) */}
           <GlassCard motionIndex={6}>
             <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Errors by Type</h2>
@@ -554,7 +553,7 @@ export default function OnboardingPage() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {sortedErrors.map((record, idx) => (
-                    <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02, duration: 0.3 }} className="hover:bg-white/[0.03] transition-colors">
+                    <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.01, duration: 0.25 }} className="hover:bg-white/[0.03] transition-colors">
                       <td className="px-6 py-4 text-sm font-medium text-white/90 whitespace-nowrap">{record.fields['Lead Name'] || '--'}</td>
                       <td className="px-6 py-4 whitespace-nowrap"><ErrorTypeBadge type={record.fields['Error Type'] || 'Unknown'} /></td>
                       <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={record.fields['Status'] || 'Unknown'} /></td>
@@ -621,7 +620,7 @@ export default function OnboardingPage() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {sortedStudents.map((record, idx) => (
-                    <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02, duration: 0.3 }} className="hover:bg-white/[0.03] transition-colors">
+                    <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.01, duration: 0.25 }} className="hover:bg-white/[0.03] transition-colors">
                       <td className="px-6 py-4 text-sm font-medium text-white/90 whitespace-nowrap">{record.fields['Full Name'] || '--'}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-300 border border-purple-500/25">
@@ -655,8 +654,6 @@ export default function OnboardingPage() {
             </div>
           )}
         </GlassCard>
-      </div>
-
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>

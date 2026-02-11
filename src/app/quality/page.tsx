@@ -86,16 +86,16 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1 },
+    transition: { staggerChildren: 0.06 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
   },
 };
 
@@ -246,7 +246,7 @@ export default function QualityPage() {
             "bg-gray-500/20 text-gray-400 border-gray-500/30";
           return status ? (
             <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}
+              className={`shrink-0 whitespace-nowrap inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}
             >
               {status}
             </span>
@@ -268,7 +268,7 @@ export default function QualityPage() {
           const desc = String(value || "");
           return (
             <span
-              className="text-text-muted max-w-[300px] truncate block"
+              className="text-text-muted max-w-[250px] sm:max-w-[300px] truncate block"
               title={desc}
             >
               {desc || "--"}
@@ -338,7 +338,7 @@ export default function QualityPage() {
             "bg-gray-500/20 text-gray-400 border-gray-500/30";
           return status ? (
             <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}
+              className={`shrink-0 whitespace-nowrap inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}
             >
               {status}
             </span>
@@ -379,7 +379,7 @@ export default function QualityPage() {
 
       {/* ======= ROW 1: KPI Cards ======= */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
           {Array.from({ length: 3 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
@@ -389,7 +389,7 @@ export default function QualityPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6"
         >
           <motion.div variants={itemVariants}>
             <MetricCard
@@ -420,7 +420,7 @@ export default function QualityPage() {
 
       {/* ======= ROW 2: Chart + Audit Button ======= */}
       {loading && qualityLoading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
           <SkeletonChart />
           <SkeletonChart />
         </div>
@@ -429,7 +429,7 @@ export default function QualityPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
         >
           {/* Quality Issues by Type Chart */}
           <motion.div variants={itemVariants}>
@@ -444,7 +444,7 @@ export default function QualityPage() {
           {/* Trigger Audit Action */}
           <motion.div
             variants={itemVariants}
-            className="glass-card p-6 flex flex-col"
+            className="glass-card p-6 sm:p-7 flex flex-col"
           >
             <h3 className="text-sm font-semibold text-text-secondary mb-6">
               System Audit
@@ -493,7 +493,7 @@ export default function QualityPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm border ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm border max-w-full overflow-hidden ${
                     auditResult.success
                       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                       : "bg-red-500/10 text-red-400 border-red-500/30"
@@ -513,12 +513,12 @@ export default function QualityPage() {
       )}
 
       {/* ======= ROW 3: Two Data Tables ======= */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
         {/* Data Quality Issues Table */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
+          transition={{ delay: 0.25, duration: 0.4 }}
         >
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle className="h-5 w-5 text-danger" />
@@ -531,7 +531,7 @@ export default function QualityPage() {
           </div>
 
           {qualityLoading ? (
-            <div className="glass-card p-6">
+            <div className="glass-card p-6 sm:p-7">
               <Skeleton className="h-8 w-full mb-4" />
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full mb-2" />
@@ -551,7 +551,7 @@ export default function QualityPage() {
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.5 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
         >
           <div className="flex items-center gap-2 mb-4">
             <UserX className="h-5 w-5 text-warning" />
@@ -564,7 +564,7 @@ export default function QualityPage() {
           </div>
 
           {missedLoading ? (
-            <div className="glass-card p-6">
+            <div className="glass-card p-6 sm:p-7">
               <Skeleton className="h-8 w-full mb-4" />
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full mb-2" />

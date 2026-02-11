@@ -62,7 +62,7 @@ export default function AlertCard({
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className={`glass-card border-l-4 ${cfg.border} ${cfg.bg} px-4 py-3 flex items-start gap-3 ${cfg.pulse ? "animate-pulse-glow" : ""}`}
+      className={`glass-card border-l-4 ${cfg.border} ${cfg.bg} px-5 py-4 flex items-start gap-3 ${cfg.pulse ? "animate-pulse-glow" : ""}`}
     >
       <div className="flex-shrink-0 mt-0.5">
         <SeverityIcon className={`w-5 h-5 ${cfg.iconColor}`} />
@@ -70,7 +70,7 @@ export default function AlertCard({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <h4 className="text-sm font-semibold text-text-primary truncate">
+          <h4 className="text-sm font-semibold text-text-primary truncate max-w-[85%]">
             {title}
           </h4>
           {timestamp && (
@@ -86,7 +86,7 @@ export default function AlertCard({
         {action && (
           <button
             onClick={action.onClick}
-            className={`mt-2 inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium transition-colors duration-200 ${cfg.badge} hover:opacity-80`}
+            className={`mt-2 inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ${cfg.badge} hover:opacity-80`}
           >
             {action.label}
           </button>

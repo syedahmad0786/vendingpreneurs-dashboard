@@ -33,18 +33,18 @@ export default function TrendCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
       whileHover={{ scale: 1.02, boxShadow: "0 8px 30px rgba(0,0,0,0.35)" }}
-      className="glass-card p-6 cursor-default"
+      className="glass-card p-6 sm:p-7 cursor-default"
     >
       <h3 className="text-sm font-medium text-text-secondary mb-1">{title}</h3>
 
       <div className="flex items-end justify-between mb-3">
-        <p className="text-2xl font-bold text-text-primary tracking-tight">
+        <p className="text-2xl font-bold text-text-primary tracking-tight truncate">
           {typeof value === "number" ? value.toLocaleString() : value}
         </p>
 
         {change !== undefined && (
           <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+            className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
               change >= 0
                 ? "bg-success/15 text-success-light"
                 : "bg-danger/15 text-danger-light"

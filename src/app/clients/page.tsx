@@ -86,16 +86,16 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1 },
+    transition: { staggerChildren: 0.06 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
   },
 };
 
@@ -284,7 +284,7 @@ export default function ClientsPage() {
 
   // ---- Render ----
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -308,7 +308,7 @@ export default function ClientsPage() {
 
       {/* ============ ROW 1: KPI Cards ============ */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
@@ -318,7 +318,7 @@ export default function ClientsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5"
         >
           <motion.div variants={itemVariants}>
             <MetricCard
@@ -383,7 +383,7 @@ export default function ClientsPage() {
 
       {/* ============ ROW 2: Membership Donut + Status Bar ============ */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
           <SkeletonChart />
           <SkeletonChart />
         </div>
@@ -392,7 +392,7 @@ export default function ClientsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
         >
           <motion.div variants={itemVariants}>
             <DonutChart
@@ -415,7 +415,7 @@ export default function ClientsPage() {
 
       {/* ============ ROW 3: Heatmap + Funnel ============ */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
           <SkeletonChart />
           <SkeletonChart />
         </div>
@@ -424,7 +424,7 @@ export default function ClientsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
         >
           <motion.div variants={itemVariants}>
             {heatmapData && heatmapRows.length > 0 && heatmapCols.length > 0 ? (
@@ -435,7 +435,7 @@ export default function ClientsPage() {
                 title="Client Health Heatmap (Status vs Stage)"
               />
             ) : (
-              <div className="glass-card p-6">
+              <div className="glass-card p-6 sm:p-7">
                 <h3 className="text-sm font-semibold text-text-secondary mb-4">
                   Client Health Heatmap
                 </h3>
@@ -488,7 +488,7 @@ export default function ClientsPage() {
               trend={totalRefunds > 0 ? "down" : "up"}
               trendValue={totalRefunds > 0 ? `${stats?.activeRefunds ?? 0} pending` : "None"}
             />
-            <div className="glass-card p-6 flex-1">
+            <div className="glass-card p-6 sm:p-7 flex-1">
               <h3 className="text-sm font-semibold text-text-secondary mb-4">
                 Refund Status
               </h3>
@@ -508,7 +508,7 @@ export default function ClientsPage() {
                           ? `${((stats?.activeRefunds ?? 0) / totalRefunds) * 100}%`
                           : "0%",
                     }}
-                    transition={{ duration: 1, delay: 0.5 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
                     className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-400"
                   />
                 </div>
@@ -527,7 +527,7 @@ export default function ClientsPage() {
                           ? `${((totalRefunds - (stats?.activeRefunds ?? 0)) / totalRefunds) * 100}%`
                           : "0%",
                     }}
-                    transition={{ duration: 1, delay: 0.7 }}
+                    transition={{ duration: 0.8, delay: 0.3 }}
                     className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
                   />
                 </div>

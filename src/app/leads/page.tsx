@@ -61,7 +61,7 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1 },
+    transition: { staggerChildren: 0.06 },
   },
 };
 
@@ -70,7 +70,7 @@ const itemVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
   },
 };
 
@@ -121,7 +121,7 @@ function TempBadge({ temp }: { temp: string }) {
   };
   const cls = bgMap[temp] || "bg-gray-500/20 text-gray-400 border-gray-500/30";
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${cls}`}>
+    <span className={`shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${cls}`}>
       <span
         className="h-1.5 w-1.5 rounded-full"
         style={{ backgroundColor: color }}
@@ -288,7 +288,7 @@ export default function LeadsPage() {
 
   // ---- Render ----
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -312,7 +312,7 @@ export default function LeadsPage() {
 
       {/* ============ ROW 1: KPI Cards ============ */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
@@ -322,7 +322,7 @@ export default function LeadsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4"
         >
           <motion.div variants={itemVariants}>
             <MetricCard
@@ -373,7 +373,7 @@ export default function LeadsPage() {
 
       {/* ============ ROW 2: Gauges + Source Donut ============ */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
           <SkeletonChart />
           <SkeletonChart />
         </div>
@@ -382,7 +382,7 @@ export default function LeadsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
         >
           {/* 3 Gauge charts side by side */}
           <motion.div variants={itemVariants}>
@@ -390,7 +390,7 @@ export default function LeadsPage() {
               <h3 className="text-sm font-semibold text-text-secondary">
                 Lead Temperature Gauge
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-4">
                 <GaugeChart
                   value={stats?.hotLeads ?? leadCounts.hot}
                   max={Math.max(totalLeads, 1)}
@@ -422,7 +422,7 @@ export default function LeadsPage() {
 
       {/* ============ ROW 3: Funnel + Leads by Owner ============ */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
           <SkeletonChart />
           <SkeletonChart />
         </div>
@@ -431,7 +431,7 @@ export default function LeadsPage() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
         >
           <motion.div variants={itemVariants}>
             <FunnelChart
@@ -478,11 +478,11 @@ export default function LeadsPage() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
+        transition={{ delay: 0.4 }}
         className="flex items-center gap-2 text-xs text-text-muted pt-4"
       >
         <Activity className="h-3.5 w-3.5 text-emerald-400" />
-        <span>Live data &middot; Auto-refreshes every 5 minutes</span>
+        <span>Live data &middot; Auto-refreshes every 2 minutes</span>
       </motion.div>
     </div>
   );
