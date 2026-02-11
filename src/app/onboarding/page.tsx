@@ -16,6 +16,9 @@ import {
   CheckCircle2,
   XCircle,
   X,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   BarChart,
@@ -80,32 +83,40 @@ const STATUS_COLORS: Record<string, { fill: string; label: string }> = {
   Ignored: { fill: '#6B7280', label: 'Ignored' },
 };
 
-const stagger = {
-  hidden: { opacity: 0, y: 16 },
+const PAGE_SIZE = 10;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.04, duration: 0.4, ease: "easeOut" as const },
+    transition: { delay: i * 0.06, duration: 0.5, ease: [0.22, 1, 0.36, 1] },
   }),
 };
 
 // ─── Toast System ─────────────────────────────────────────────────────────────
 
-function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
+function ToastContainer({
+  toasts,
+  removeToast,
+}: {
+  toasts: Toast[];
+  removeToast: (id: string) => void;
+}) {
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col gap-3 pointer-events-none max-w-[calc(100vw-2rem)]">
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none max-w-[min(380px,calc(100vw-2rem))]">
       <AnimatePresence>
         {toasts.map((toast) => (
           <motion.div
             key={toast.id}
-            initial={{ opacity: 0, x: 80, scale: 0.95 }}
+            initial={{ opacity: 0, x: 60, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 80, scale: 0.95 }}
-            transition={{ duration: 0.3 }}
-            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl shadow-2xl max-w-sm ${
+            exit={{ opacity: 0, x: 60, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className={`pointer-events-auto flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-2xl ${
               toast.type === 'success'
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                : 'bg-red-500/15 border-red-500/30 text-red-300'
+                ? 'bg-emerald-950/80 border-emerald-500/20 text-emerald-300 backdrop-blur-xl'
+                : 'bg-red-950/80 border-red-500/20 text-red-300 backdrop-blur-xl'
             }`}
           >
             {toast.type === 'success' ? (
@@ -113,8 +124,12 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast:
             ) : (
               <XCircle className="w-5 h-5 shrink-0" />
             )}
-            <span className="text-sm font-medium truncate">{toast.message}</span>
-            <button onClick={() => removeToast(toast.id)} className="ml-2 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+            <span className="text-sm font-medium leading-snug">{toast.message}</span>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="ml-auto shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+              aria-label="Dismiss notification"
+            >
               <X className="w-4 h-4" />
             </button>
           </motion.div>
@@ -141,37 +156,84 @@ function useToasts() {
 
 // ─── Shared UI Components ─────────────────────────────────────────────────────
 
-function GlassCard({ children, className = '', motionIndex = 0 }: { children: React.ReactNode; className?: string; motionIndex?: number }) {
+function SectionCard({
+  children,
+  className = '',
+  motionIndex = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  motionIndex?: number;
+}) {
   return (
-    <motion.div custom={motionIndex} initial="hidden" animate="visible" variants={stagger} className={`bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-6 lg:p-7 ${className}`}>
+    <motion.div
+      custom={motionIndex}
+      initial="hidden"
+      animate="visible"
+      variants={fadeUp}
+      className={`glass-card p-5 sm:p-7 ${className}`}
+    >
       {children}
     </motion.div>
   );
 }
 
-function SkeletonBar({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-white/10 ${className}`} />;
+function SectionHeader({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count?: number;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex items-center gap-3">
+        <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">
+          {title}
+        </h2>
+        {count !== undefined && (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-text-muted border border-white/10 tabular-nums">
+            {count}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
 }
 
-function LoadingCard() {
+function SkeletonBar({ className = '' }: { className?: string }) {
+  return <div className={`skeleton ${className}`} />;
+}
+
+function LoadingKPI() {
   return (
-    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 sm:p-6 flex flex-col gap-3">
-      <SkeletonBar className="h-4 w-24" />
-      <SkeletonBar className="h-8 w-16" />
-      <SkeletonBar className="h-3 w-32" />
+    <div className="glass-card p-6 sm:p-7">
+      <div className="flex items-start justify-between mb-5">
+        <SkeletonBar className="h-3.5 w-24" />
+        <SkeletonBar className="h-10 w-10 rounded-xl" />
+      </div>
+      <SkeletonBar className="h-9 w-20 mb-2" />
+      <SkeletonBar className="h-3 w-28" />
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    New: 'bg-red-500/20 text-red-300 border-red-500/30',
-    Investigating: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    Resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    Ignored: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
+    New: 'bg-red-500/10 text-red-400 border-red-500/20',
+    Investigating: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    Resolved: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    Ignored: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
   };
   return (
-    <span className={`inline-flex items-center shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || 'bg-white/10 text-white/60 border-white/20'}`}>
+    <span
+      className={`inline-flex items-center shrink-0 whitespace-nowrap px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${
+        map[status] || 'bg-white/5 text-text-muted border-white/10'
+      }`}
+    >
       {status}
     </span>
   );
@@ -180,19 +242,34 @@ function StatusBadge({ status }: { status: string }) {
 function ErrorTypeBadge({ type }: { type: string }) {
   const color = ERROR_TYPE_COLORS[type] || '#6B7280';
   return (
-    <span className="inline-flex items-center shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium border" style={{ backgroundColor: `${color}20`, color, borderColor: `${color}50` }}>
+    <span
+      className="inline-flex items-center shrink-0 whitespace-nowrap px-2.5 py-1 rounded-lg text-[11px] font-semibold border"
+      style={{ backgroundColor: `${color}10`, color, borderColor: `${color}25` }}
+    >
       {type}
     </span>
   );
 }
 
-function SortButton({ column, sortState, onSort }: { column: string; sortState: SortState; onSort: (col: string) => void }) {
+function SortButton({
+  column,
+  sortState,
+  onSort,
+}: {
+  column: string;
+  sortState: SortState;
+  onSort: (col: string) => void;
+}) {
   const active = sortState.column === column;
   return (
-    <button onClick={() => onSort(column)} className="inline-flex items-center gap-1 hover:text-white/90 transition-colors">
-      {active && sortState.direction === 'asc' && <ChevronUp className="w-3.5 h-3.5" />}
-      {active && sortState.direction === 'desc' && <ChevronDown className="w-3.5 h-3.5" />}
-      {!active && <ArrowUpDown className="w-3.5 h-3.5 opacity-40" />}
+    <button
+      onClick={() => onSort(column)}
+      className="inline-flex items-center gap-1 hover:text-text-primary transition-colors"
+      aria-label={`Sort by ${column}`}
+    >
+      {active && sortState.direction === 'asc' && <ChevronUp className="w-3.5 h-3.5 text-primary" />}
+      {active && sortState.direction === 'desc' && <ChevronDown className="w-3.5 h-3.5 text-primary" />}
+      {!active && <ArrowUpDown className="w-3.5 h-3.5 opacity-30" />}
     </button>
   );
 }
@@ -200,8 +277,8 @@ function SortButton({ column, sortState, onSort }: { column: string; sortState: 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
-      <p className="text-xs text-white/60 mb-1">{label}</p>
+    <div className="glass-strong rounded-xl px-4 py-3 shadow-2xl">
+      <p className="text-[11px] text-text-muted mb-1.5 font-medium">{label}</p>
       {payload.map((p: any, i: number) => (
         <p key={i} className="text-sm font-semibold" style={{ color: p.color || p.fill }}>
           {p.name}: {p.value}
@@ -211,7 +288,48 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-// ─── Mobile Card for Table Row (used on small screens) ────────────────────────
+function ActionButton({
+  onClick,
+  disabled,
+  loading,
+  variant = 'primary',
+  icon: Icon,
+  label,
+  href,
+}: {
+  onClick?: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  variant?: 'primary' | 'ghost';
+  icon: React.ElementType;
+  label: string;
+  href?: string;
+}) {
+  const base =
+    'inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed';
+  const variants = {
+    primary: 'bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 hover:border-primary/30',
+    ghost: 'bg-white/[0.03] text-text-secondary border border-white/[0.06] hover:bg-white/[0.06] hover:text-text-primary',
+  };
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={`${base} ${variants[variant]}`}>
+        <Icon className="w-3.5 h-3.5" />
+        <span className="hidden lg:inline">{label}</span>
+      </a>
+    );
+  }
+
+  return (
+    <button onClick={onClick} disabled={disabled || loading} className={`${base} ${variants[variant]}`}>
+      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
+      <span className="hidden lg:inline">{label}</span>
+    </button>
+  );
+}
+
+// ─── Mobile Card Components ──────────────────────────────────────────────────
 
 function ErrorMobileCard({
   record,
@@ -223,38 +341,45 @@ function ErrorMobileCard({
   onResubmit: (record: AirtableRecord) => void;
 }) {
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium text-white/90 truncate">{record.fields['Lead Name'] || '--'}</p>
+    <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-text-primary truncate">
+            {record.fields['Lead Name'] || '--'}
+          </p>
+          <p className="text-xs text-text-muted mt-1 truncate">{record.fields['Email'] || '--'}</p>
+        </div>
         <StatusBadge status={record.fields['Status'] || 'Unknown'} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <ErrorTypeBadge type={record.fields['Error Type'] || 'Unknown'} />
+        <span className="text-[11px] text-text-muted">
+          {record.fields['Timestamp']
+            ? new Date(record.fields['Timestamp']).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : '--'}
+        </span>
       </div>
-      <p className="text-xs text-white/50 truncate">{record.fields['Email'] || '--'}</p>
-      <p className="text-xs text-white/40">
-        {record.fields['Timestamp']
-          ? new Date(record.fields['Timestamp']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-          : '--'}
-      </p>
-      <div className="flex items-center gap-2 pt-1">
-        <button
+      <div className="flex items-center gap-2 pt-1 border-t border-white/[0.04]">
+        <ActionButton
           onClick={() => onResubmit(record)}
           disabled={resubmitting === record.id}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hover:border-blue-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {resubmitting === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Resubmit
-        </button>
-        <a
+          loading={resubmitting === record.id}
+          icon={RefreshCw}
+          label="Resubmit"
+          variant="primary"
+        />
+        <ActionButton
           href={`https://airtable.com/appgqED05AlPLi0ar/tblaQ6fpHGhRs56sH/${record.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Airtable
-        </a>
+          icon={ExternalLink}
+          label="Airtable"
+          variant="ghost"
+        />
       </div>
     </div>
   );
@@ -262,48 +387,121 @@ function ErrorMobileCard({
 
 function StudentMobileCard({ record }: { record: AirtableRecord }) {
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium text-white/90 truncate">{record.fields['Full Name'] || '--'}</p>
-        <span className="inline-flex items-center shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-300 border border-purple-500/25">
+    <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-text-primary truncate">
+            {record.fields['Full Name'] || '--'}
+          </p>
+          <p className="text-xs text-text-muted mt-1 truncate">{record.fields['Best Email'] || '--'}</p>
+        </div>
+        <span className="inline-flex items-center shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#8B5CF6]/10 text-[#A78BFA] border border-[#8B5CF6]/20">
           {record.fields['Program Tier Purchased'] || '--'}
         </span>
       </div>
-      <p className="text-xs text-white/50 truncate">{record.fields['Best Email'] || '--'}</p>
-      <div className="flex items-center gap-4 text-xs text-white/40">
+      <div className="flex items-center gap-5 text-[11px] text-text-muted">
         <span>
           {'Created: '}
           {record.fields['Create Date']
-            ? new Date(record.fields['Create Date']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            ? new Date(record.fields['Create Date']).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
             : '--'}
         </span>
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1.5">
           {'Skool: '}
           {record.fields['Skool Granted'] ? (
-            <span className="text-emerald-400">&#10003;</span>
+            <span className="text-emerald-400 font-bold">{'✓'}</span>
           ) : (
-            <span className="text-red-400">&#10007;</span>
+            <span className="text-red-400 font-bold">{'✕'}</span>
           )}
         </span>
       </div>
-      <div className="flex items-center gap-4 text-xs text-white/40">
+      <div className="flex items-center gap-5 text-[11px] text-text-muted">
         <span>
           {'Kickoff: '}
           {record.fields['Kickoff Scheduled']
-            ? new Date(record.fields['Kickoff Scheduled']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            ? new Date(record.fields['Kickoff Scheduled']).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
             : '--'}
         </span>
       </div>
-      <div className="pt-1">
-        <a
+      <div className="pt-1 border-t border-white/[0.04]">
+        <ActionButton
           href={`https://airtable.com/appgqED05AlPLi0ar/tblMLFYTeoqrtmgXQ/${record.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all"
+          icon={ExternalLink}
+          label="Open Lead"
+          variant="ghost"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Pagination ──────────────────────────────────────────────────────────────
+
+function Pagination({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize: ps,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const safePage = Math.min(currentPage, totalPages);
+  return (
+    <div className="flex items-center justify-between pt-5 border-t border-white/[0.04]">
+      <p className="text-xs text-text-muted tabular-nums">
+        {(safePage - 1) * ps + 1}&ndash;{Math.min(safePage * ps, totalItems)} of {totalItems}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(Math.max(1, safePage - 1))}
+          disabled={safePage <= 1}
+          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          aria-label="Previous page"
         >
-          <ExternalLink className="w-3.5 h-3.5" />
-          Open Lead
-        </a>
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+          let page: number;
+          if (totalPages <= 5) page = i + 1;
+          else if (safePage <= 3) page = i + 1;
+          else if (safePage >= totalPages - 2) page = totalPages - 4 + i;
+          else page = safePage - 2 + i;
+          return (
+            <button
+              key={page}
+              onClick={() => onPageChange(page)}
+              className={`w-8 h-8 rounded-lg text-xs font-medium transition-all duration-200 ${
+                page === safePage
+                  ? 'bg-primary text-white'
+                  : 'text-text-muted hover:text-text-primary hover:bg-white/5'
+              }`}
+            >
+              {page}
+            </button>
+          );
+        })}
+        <button
+          onClick={() => onPageChange(Math.min(totalPages, safePage + 1))}
+          disabled={safePage >= totalPages}
+          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          aria-label="Next page"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
@@ -321,6 +519,10 @@ export default function OnboardingPage() {
   const [resubmitting, setResubmitting] = useState<string | null>(null);
   const [errorSort, setErrorSort] = useState<SortState>({ column: '', direction: null });
   const [studentSort, setStudentSort] = useState<SortState>({ column: 'Create Date', direction: 'desc' });
+  const [errorSearch, setErrorSearch] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [errorPage, setErrorPage] = useState(1);
+  const [studentPage, setStudentPage] = useState(1);
   const { toasts, addToast, removeToast } = useToasts();
 
   // ── Data Fetching ───────────────────────────────────────────────────────────
@@ -346,7 +548,9 @@ export default function OnboardingPage() {
 
   // ── KPI Derivations ────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
-    const activeErrors = errorsData.filter((r) => r.fields['Status'] === 'New' || r.fields['Status'] === 'Investigating').length;
+    const activeErrors = errorsData.filter(
+      (r) => r.fields['Status'] === 'New' || r.fields['Status'] === 'Investigating'
+    ).length;
     return {
       inOnboarding: stats?.onboarding?.inOnboarding ?? 0,
       pendingStudents: stats?.onboarding?.pendingStudentRecords ?? 0,
@@ -365,7 +569,10 @@ export default function OnboardingPage() {
         { phase: 'Vendhub Member', count: 0 },
       ];
     }
-    return Object.entries(stats.onboarding.phaseBreakdown).map(([phase, count]) => ({ phase, count: count as number }));
+    return Object.entries(stats.onboarding.phaseBreakdown).map(([phase, count]) => ({
+      phase,
+      count: count as number,
+    }));
   }, [stats]);
 
   const completionTrend = useMemo(() => {
@@ -375,14 +582,26 @@ export default function OnboardingPage() {
 
   const errorsByType = useMemo(() => {
     const counts: Record<string, number> = {};
-    errorsData.forEach((r) => { const t = r.fields['Error Type'] || 'Unknown'; counts[t] = (counts[t] || 0) + 1; });
-    return Object.entries(counts).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
+    errorsData.forEach((r) => {
+      const t = r.fields['Error Type'] || 'Unknown';
+      counts[t] = (counts[t] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
   }, [errorsData]);
 
   const statusBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
-    errorsData.forEach((r) => { const s = r.fields['Status'] || 'Unknown'; counts[s] = (counts[s] || 0) + 1; });
-    return Object.entries(counts).map(([status, count]) => ({ name: status, value: count, fill: STATUS_COLORS[status]?.fill || '#6B7280' }));
+    errorsData.forEach((r) => {
+      const s = r.fields['Status'] || 'Unknown';
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return Object.entries(counts).map(([status, count]) => ({
+      name: status,
+      value: count,
+      fill: STATUS_COLORS[status]?.fill || '#6B7280',
+    }));
   }, [errorsData]);
 
   // ── Sorting ─────────────────────────────────────────────────────────────────
@@ -394,8 +613,20 @@ export default function OnboardingPage() {
     return { column, direction: 'asc' };
   };
 
-  const handleErrorSort = useCallback((column: string) => setErrorSort((prev) => cycleSort(prev, column)), []);
-  const handleStudentSort = useCallback((column: string) => setStudentSort((prev) => cycleSort(prev, column)), []);
+  const handleErrorSort = useCallback(
+    (column: string) => {
+      setErrorSort((prev) => cycleSort(prev, column));
+      setErrorPage(1);
+    },
+    []
+  );
+  const handleStudentSort = useCallback(
+    (column: string) => {
+      setStudentSort((prev) => cycleSort(prev, column));
+      setStudentPage(1);
+    },
+    []
+  );
 
   const sortRecords = (data: AirtableRecord[], sort: SortState, dateColumns: string[] = []) => {
     if (!sort.column || !sort.direction) return data;
@@ -407,22 +638,60 @@ export default function OnboardingPage() {
         const bD = new Date(bVal).getTime() || 0;
         return sort.direction === 'asc' ? aD - bD : bD - aD;
       }
-      return sort.direction === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+      return sort.direction === 'asc'
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal));
     });
   };
 
-  const sortedErrors = useMemo(() => sortRecords(errorsData, errorSort, ['Timestamp']), [errorsData, errorSort]);
+  // ── Filtering ──────────────────────────────────────────────────────────────
+  const filteredErrors = useMemo(() => {
+    if (!errorSearch.trim()) return errorsData;
+    const term = errorSearch.toLowerCase();
+    return errorsData.filter(
+      (r) =>
+        (r.fields['Lead Name'] || '').toLowerCase().includes(term) ||
+        (r.fields['Email'] || '').toLowerCase().includes(term) ||
+        (r.fields['Error Type'] || '').toLowerCase().includes(term)
+    );
+  }, [errorsData, errorSearch]);
+
+  const filteredStudents = useMemo(() => {
+    if (!studentSearch.trim()) return studentsData;
+    const term = studentSearch.toLowerCase();
+    return studentsData.filter(
+      (r) =>
+        (r.fields['Full Name'] || '').toLowerCase().includes(term) ||
+        (r.fields['Best Email'] || '').toLowerCase().includes(term) ||
+        (r.fields['Program Tier Purchased'] || '').toLowerCase().includes(term)
+    );
+  }, [studentsData, studentSearch]);
+
+  const sortedErrors = useMemo(
+    () => sortRecords(filteredErrors, errorSort, ['Timestamp']),
+    [filteredErrors, errorSort]
+  );
 
   const sortedStudents = useMemo(() => {
     if (!studentSort.column || !studentSort.direction) {
-      return [...studentsData].sort((a, b) => {
+      return [...filteredStudents].sort((a, b) => {
         const aD = new Date(a.fields['Create Date']).getTime() || 0;
         const bD = new Date(b.fields['Create Date']).getTime() || 0;
         return bD - aD;
       });
     }
-    return sortRecords(studentsData, studentSort, ['Create Date', 'Kickoff Scheduled']);
-  }, [studentsData, studentSort]);
+    return sortRecords(filteredStudents, studentSort, ['Create Date', 'Kickoff Scheduled']);
+  }, [filteredStudents, studentSort]);
+
+  // ── Pagination slicing ──────────────────────────────────────────────────────
+  const errorTotalPages = Math.max(1, Math.ceil(sortedErrors.length / PAGE_SIZE));
+  const paginatedErrors = sortedErrors.slice((errorPage - 1) * PAGE_SIZE, errorPage * PAGE_SIZE);
+
+  const studentTotalPages = Math.max(1, Math.ceil(sortedStudents.length / PAGE_SIZE));
+  const paginatedStudents = sortedStudents.slice(
+    (studentPage - 1) * PAGE_SIZE,
+    studentPage * PAGE_SIZE
+  );
 
   // ── Resubmit Handler ────────────────────────────────────────────────────────
   const handleResubmit = async (record: AirtableRecord) => {
@@ -459,68 +728,132 @@ export default function OnboardingPage() {
 
   // ── KPI Card Config ─────────────────────────────────────────────────────────
   const kpiCards = [
-    { label: 'In Onboarding Now', value: kpis.inOnboarding, icon: Users, color: '#3B82F6', bg: 'from-blue-500/20 to-blue-600/5' },
-    { label: 'Pending Student Records', value: kpis.pendingStudents, icon: GraduationCap, color: '#F59E0B', bg: 'from-amber-500/20 to-amber-600/5' },
-    { label: 'Active Errors', value: kpis.activeErrors, icon: AlertTriangle, color: '#EF4444', bg: 'from-red-500/20 to-red-600/5' },
-    { label: 'Avg Days to Complete', value: kpis.avgDays, icon: Clock, color: '#10B981', bg: 'from-emerald-500/20 to-emerald-600/5' },
+    {
+      label: 'In Onboarding',
+      value: kpis.inOnboarding,
+      icon: Users,
+      color: '#3B82F6',
+      bgClass: 'bg-primary/15',
+      textClass: 'text-primary-light',
+      glowClass: 'glow-blue',
+    },
+    {
+      label: 'Pending Records',
+      value: kpis.pendingStudents,
+      icon: GraduationCap,
+      color: '#F59E0B',
+      bgClass: 'bg-warning/15',
+      textClass: 'text-warning-light',
+      glowClass: 'glow-amber',
+    },
+    {
+      label: 'Active Errors',
+      value: kpis.activeErrors,
+      icon: AlertTriangle,
+      color: '#EF4444',
+      bgClass: 'bg-danger/15',
+      textClass: 'text-danger-light',
+      glowClass: 'glow-red',
+    },
+    {
+      label: 'Avg Days to Complete',
+      value: kpis.avgDays,
+      icon: Clock,
+      color: '#10B981',
+      bgClass: 'bg-success/15',
+      textClass: 'text-success-light',
+      glowClass: 'glow-green',
+    },
   ];
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-6 sm:gap-8">
-      {/* Page Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600">
-            <Users className="h-5 w-5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-text-primary truncate">
-              Onboarding Deep Dive
-            </h1>
-            <p className="text-xs sm:text-sm text-text-muted leading-relaxed">
-              Track every stage of client onboarding, resolve errors, and monitor completions
-            </p>
-          </div>
+    <div className="flex flex-col gap-8 lg:gap-10">
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
+      <motion.header
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="flex items-center gap-4"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[#06B6D4] shadow-lg shadow-primary/20">
+          <Users className="h-5.5 w-5.5 text-white" />
         </div>
-      </motion.div>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-text-primary text-balance">
+            Onboarding Deep Dive
+          </h1>
+          <p className="text-sm text-text-muted leading-relaxed mt-0.5">
+            Track every stage of client onboarding, resolve errors, and monitor completions
+          </p>
+        </div>
+      </motion.header>
 
       {/* ── Row 1: KPI Cards ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-5">
         {loadingStats
-          ? Array.from({ length: 4 }).map((_, i) => <LoadingCard key={i} />)
+          ? Array.from({ length: 4 }).map((_, i) => <LoadingKPI key={i} />)
           : kpiCards.map((card, i) => (
-              <GlassCard key={card.label} motionIndex={i} className="relative overflow-hidden">
-                <div className={`absolute inset-0 bg-gradient-to-br ${card.bg} opacity-50`} />
-                <div className="relative">
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 leading-snug">{card.label}</span>
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${card.color}20` }}>
-                      <card.icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" style={{ color: card.color }} />
-                    </div>
+              <motion.div
+                key={card.label}
+                custom={i}
+                initial="hidden"
+                animate="visible"
+                variants={fadeUp}
+                whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+                className={`glass-card p-6 sm:p-7 cursor-default transition-shadow duration-300 ${card.glowClass}`}
+              >
+                <div className="flex items-start justify-between mb-5">
+                  <span className="text-xs font-medium text-text-muted leading-snug">
+                    {card.label}
+                  </span>
+                  <div
+                    className={`flex items-center justify-center w-10 h-10 rounded-xl ${card.bgClass}`}
+                  >
+                    <card.icon className={`w-5 h-5 ${card.textClass}`} />
                   </div>
-                  <p className="text-2xl sm:text-3xl font-bold tabular-nums">{card.value}</p>
                 </div>
-              </GlassCard>
+                <p className="text-3xl sm:text-4xl font-bold text-text-primary tracking-tight tabular-nums">
+                  {card.value}
+                </p>
+              </motion.div>
             ))}
       </div>
 
       {/* ── Row 2: Stage Waterfall + Completion Trend ────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 lg:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
         {/* Onboarding Stage Waterfall */}
-        <GlassCard motionIndex={4}>
-          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Onboarding Stage Waterfall</h2>
+        <SectionCard motionIndex={4}>
+          <SectionHeader title="Onboarding Stage Waterfall" />
           {loadingStats ? (
-            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+            <div className="h-64 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
+            </div>
           ) : (
-            <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-              <div className="min-w-[320px]">
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={waterfallData} barSize={36} margin={{ left: -10, right: 10, top: 5, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="phase" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} interval={0} />
-                    <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} width={35} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+            <div className="w-full overflow-x-auto -mx-2 px-2">
+              <div className="min-w-[300px]">
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart
+                    data={waterfallData}
+                    barSize={40}
+                    margin={{ left: -8, right: 12, top: 8, bottom: 8 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis
+                      dataKey="phase"
+                      tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
+                      tickLine={false}
+                      interval={0}
+                    />
+                    <YAxis
+                      tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
+                      tickLine={false}
+                      allowDecimals={false}
+                      width={36}
+                    />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
                     <Bar dataKey="count" name="Clients" radius={[8, 8, 0, 0]}>
                       {waterfallData.map((entry) => (
                         <Cell key={entry.phase} fill={PHASE_COLORS[entry.phase] || '#3B82F6'} />
@@ -531,55 +864,103 @@ export default function OnboardingPage() {
               </div>
             </div>
           )}
-        </GlassCard>
+        </SectionCard>
 
-        {/* Onboarding Completion Trend */}
-        <GlassCard motionIndex={5}>
-          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Onboarding Completion Trend</h2>
+        {/* Completion Trend */}
+        <SectionCard motionIndex={5}>
+          <SectionHeader title="Completion Trend" />
           {loadingStats ? (
-            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+            <div className="h-64 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
+            </div>
           ) : (
-            <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-              <div className="min-w-[320px]">
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={completionTrend} margin={{ left: -10, right: 10, top: 5, bottom: 5 }}>
+            <div className="w-full overflow-x-auto -mx-2 px-2">
+              <div className="min-w-[300px]">
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart
+                    data={completionTrend}
+                    margin={{ left: -8, right: 12, top: 8, bottom: 8 }}
+                  >
                     <defs>
                       <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} />
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
                         <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
-                    <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} width={35} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
+                      tickLine={false}
+                      allowDecimals={false}
+                      width={36}
+                    />
                     <Tooltip content={<ChartTooltip />} />
-                    <Area type="monotone" dataKey="completed" name="Completed" stroke="#10B981" strokeWidth={2.5} fill="url(#completedGrad)" dot={{ r: 3, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#10B981', stroke: '#fff', strokeWidth: 2 }} />
+                    <Area
+                      type="monotone"
+                      dataKey="completed"
+                      name="Completed"
+                      stroke="#10B981"
+                      strokeWidth={2.5}
+                      fill="url(#completedGrad)"
+                      dot={{ r: 3, fill: '#10B981', strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: '#10B981', stroke: '#fff', strokeWidth: 2 }}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
-        </GlassCard>
+        </SectionCard>
       </div>
 
       {/* ── Row 3: Errors by Type + Error Status Breakdown ──────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 lg:gap-6">
-        {/* Errors by Type (Horizontal Bar) */}
-        <GlassCard motionIndex={6}>
-          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Errors by Type</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+        {/* Errors by Type */}
+        <SectionCard motionIndex={6}>
+          <SectionHeader title="Errors by Type" />
           {loadingErrors ? (
-            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+            <div className="h-64 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
+            </div>
           ) : errorsByType.length === 0 ? (
-            <div className="h-56 sm:h-64 flex items-center justify-center text-white/30 text-sm">No error data available</div>
+            <div className="h-64 flex flex-col items-center justify-center text-text-muted">
+              <AlertTriangle className="w-8 h-8 mb-2 opacity-30" />
+              <p className="text-sm">No error data available</p>
+            </div>
           ) : (
-            <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-              <div className="min-w-[360px]">
-                <ResponsiveContainer width="100%" height={Math.max(260, errorsByType.length * 42)}>
-                  <BarChart data={errorsByType} layout="vertical" barSize={20} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                    <XAxis type="number" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} />
-                    <YAxis type="category" dataKey="type" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 10 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} width={130} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+            <div className="w-full overflow-x-auto -mx-2 px-2">
+              <div className="min-w-[340px]">
+                <ResponsiveContainer width="100%" height={Math.max(280, errorsByType.length * 44)}>
+                  <BarChart
+                    data={errorsByType}
+                    layout="vertical"
+                    barSize={22}
+                    margin={{ left: 0, right: 12, top: 8, bottom: 8 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="type"
+                      tick={{ fill: 'rgba(255,255,255,0.45)', fontSize: 10 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
+                      tickLine={false}
+                      width={135}
+                    />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
                     <Bar dataKey="count" name="Errors" radius={[0, 6, 6, 0]}>
                       {errorsByType.map((entry) => (
                         <Cell key={entry.type} fill={ERROR_TYPE_COLORS[entry.type] || '#6B7280'} />
@@ -590,19 +971,33 @@ export default function OnboardingPage() {
               </div>
             </div>
           )}
-        </GlassCard>
+        </SectionCard>
 
-        {/* Error Status Breakdown (Donut) */}
-        <GlassCard motionIndex={7}>
-          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Error Status Breakdown</h2>
+        {/* Error Status Breakdown */}
+        <SectionCard motionIndex={7}>
+          <SectionHeader title="Error Status Breakdown" />
           {loadingErrors ? (
-            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+            <div className="h-64 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
+            </div>
           ) : statusBreakdown.length === 0 ? (
-            <div className="h-56 sm:h-64 flex items-center justify-center text-white/30 text-sm">No error data available</div>
+            <div className="h-64 flex flex-col items-center justify-center text-text-muted">
+              <AlertTriangle className="w-8 h-8 mb-2 opacity-30" />
+              <p className="text-sm">No error data available</p>
+            </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={320}>
               <PieChart>
-                <Pie data={statusBreakdown} cx="50%" cy="45%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none">
+                <Pie
+                  data={statusBreakdown}
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={60}
+                  outerRadius={95}
+                  paddingAngle={4}
+                  dataKey="value"
+                  stroke="none"
+                >
                   {statusBreakdown.map((entry, index) => (
                     <Cell key={index} fill={entry.fill} />
                   ))}
@@ -612,47 +1007,75 @@ export default function OnboardingPage() {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
                     return (
-                      <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
-                        <p className="text-sm font-semibold" style={{ color: d.fill }}>{d.name}: {d.value}</p>
+                      <div className="glass-strong rounded-xl px-4 py-3 shadow-2xl">
+                        <p className="text-sm font-semibold" style={{ color: d.fill }}>
+                          {d.name}: {d.value}
+                        </p>
                       </div>
                     );
                   }}
                 />
-                <Legend verticalAlign="bottom" height={36} formatter={(value: string) => <span className="text-xs text-white/60">{value}</span>} />
+                <Legend
+                  verticalAlign="bottom"
+                  height={40}
+                  formatter={(value: string) => (
+                    <span className="text-xs text-text-muted">{value}</span>
+                  )}
+                />
               </PieChart>
             </ResponsiveContainer>
           )}
-        </GlassCard>
+        </SectionCard>
       </div>
 
       {/* ── Row 4: Onboarding Errors Table ──────────────────────────────── */}
-      <GlassCard motionIndex={8}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-5 gap-2">
-          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider">Onboarding Errors</h2>
-          <span className="text-xs text-white/40">{errorsData.length} record{errorsData.length !== 1 ? 's' : ''}</span>
-        </div>
+      <SectionCard motionIndex={8}>
+        <SectionHeader title="Onboarding Errors" count={filteredErrors.length}>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search errors..."
+              value={errorSearch}
+              onChange={(e) => {
+                setErrorSearch(e.target.value);
+                setErrorPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all"
+            />
+          </div>
+        </SectionHeader>
 
         {loadingErrors ? (
-          <div className="flex flex-col gap-3">{Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} className="h-12 w-full" />)}</div>
-        ) : errorsData.length === 0 ? (
-          <div className="text-center py-12 sm:py-16 text-white/30">
-            <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No onboarding errors found</p>
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonBar key={i} className="h-14 w-full" />
+            ))}
+          </div>
+        ) : filteredErrors.length === 0 ? (
+          <div className="text-center py-16 text-text-muted">
+            <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">{errorSearch ? 'No matching errors found' : 'No onboarding errors found'}</p>
           </div>
         ) : (
           <>
             {/* Mobile card layout */}
             <div className="flex flex-col gap-3 md:hidden">
-              {sortedErrors.map((record) => (
-                <ErrorMobileCard key={record.id} record={record} resubmitting={resubmitting} onResubmit={handleResubmit} />
+              {paginatedErrors.map((record) => (
+                <ErrorMobileCard
+                  key={record.id}
+                  record={record}
+                  resubmitting={resubmitting}
+                  onResubmit={handleResubmit}
+                />
               ))}
             </div>
 
             {/* Desktop table layout */}
-            <div className="hidden md:block overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-7">
-              <table className="w-full min-w-[800px]">
+            <div className="hidden md:block overflow-x-auto -mx-5 sm:-mx-7">
+              <table className="w-full min-w-[820px]">
                 <thead>
-                  <tr className="border-b border-white/10">
+                  <tr className="border-b border-white/[0.06]">
                     {[
                       { key: 'Lead Name', label: 'Lead Name' },
                       { key: 'Error Type', label: 'Error Type' },
@@ -660,36 +1083,70 @@ export default function OnboardingPage() {
                       { key: 'Email', label: 'Email' },
                       { key: 'Timestamp', label: 'Timestamp' },
                     ].map(({ key, label }) => (
-                      <th key={key} className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-white/50 uppercase tracking-wider cursor-pointer hover:text-white/70 transition-colors" onClick={() => handleErrorSort(key)}>
+                      <th
+                        key={key}
+                        className="px-5 lg:px-7 py-3.5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-secondary transition-colors"
+                        onClick={() => handleErrorSort(key)}
+                      >
                         <span className="flex items-center gap-1.5">
                           {label}
                           <SortButton column={key} sortState={errorSort} onSort={handleErrorSort} />
                         </span>
                       </th>
                     ))}
-                    <th className="px-4 lg:px-6 py-3 text-right text-xs font-medium text-white/50 uppercase tracking-wider">Actions</th>
+                    <th className="px-5 lg:px-7 py-3.5 text-right text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
-                  {sortedErrors.map((record, idx) => (
-                    <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.01, duration: 0.25 }} className="hover:bg-white/[0.03] transition-colors">
-                      <td className="px-4 lg:px-6 py-3.5 text-sm font-medium text-white/90 whitespace-nowrap max-w-[180px] truncate">{record.fields['Lead Name'] || '--'}</td>
-                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap"><ErrorTypeBadge type={record.fields['Error Type'] || 'Unknown'} /></td>
-                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap"><StatusBadge status={record.fields['Status'] || 'Unknown'} /></td>
-                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap max-w-[200px] truncate">{record.fields['Email'] || '--'}</td>
-                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/50 whitespace-nowrap">
-                        {record.fields['Timestamp'] ? new Date(record.fields['Timestamp']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}
+                <tbody className="divide-y divide-white/[0.03]">
+                  {paginatedErrors.map((record, idx) => (
+                    <motion.tr
+                      key={record.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.02, duration: 0.3 }}
+                      className="hover:bg-white/[0.02] transition-colors"
+                    >
+                      <td className="px-5 lg:px-7 py-4 text-sm font-medium text-text-primary whitespace-nowrap max-w-[180px] truncate">
+                        {record.fields['Lead Name'] || '--'}
                       </td>
-                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap text-right">
+                      <td className="px-5 lg:px-7 py-4 whitespace-nowrap">
+                        <ErrorTypeBadge type={record.fields['Error Type'] || 'Unknown'} />
+                      </td>
+                      <td className="px-5 lg:px-7 py-4 whitespace-nowrap">
+                        <StatusBadge status={record.fields['Status'] || 'Unknown'} />
+                      </td>
+                      <td className="px-5 lg:px-7 py-4 text-sm text-text-secondary whitespace-nowrap max-w-[200px] truncate">
+                        {record.fields['Email'] || '--'}
+                      </td>
+                      <td className="px-5 lg:px-7 py-4 text-sm text-text-muted whitespace-nowrap">
+                        {record.fields['Timestamp']
+                          ? new Date(record.fields['Timestamp']).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '--'}
+                      </td>
+                      <td className="px-5 lg:px-7 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => handleResubmit(record)} disabled={resubmitting === record.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hover:border-blue-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                            {resubmitting === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                            <span className="hidden lg:inline">Resubmit</span>
-                          </button>
-                          <a href={`https://airtable.com/appgqED05AlPLi0ar/tblaQ6fpHGhRs56sH/${record.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all">
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span className="hidden lg:inline">Airtable</span>
-                          </a>
+                          <ActionButton
+                            onClick={() => handleResubmit(record)}
+                            disabled={resubmitting === record.id}
+                            loading={resubmitting === record.id}
+                            icon={RefreshCw}
+                            label="Resubmit"
+                            variant="primary"
+                          />
+                          <ActionButton
+                            href={`https://airtable.com/appgqED05AlPLi0ar/tblaQ6fpHGhRs56sH/${record.id}`}
+                            icon={ExternalLink}
+                            label="Airtable"
+                            variant="ghost"
+                          />
                         </div>
                       </td>
                     </motion.tr>
@@ -697,93 +1154,160 @@ export default function OnboardingPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={errorPage}
+              totalPages={errorTotalPages}
+              totalItems={sortedErrors.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setErrorPage}
+            />
           </>
         )}
-      </GlassCard>
+      </SectionCard>
 
       {/* ── Row 5: Recent Student Onboardings ───────────────────────────── */}
-      <GlassCard motionIndex={9}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-5 gap-2">
-          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider">Recent Student Onboardings</h2>
-          <span className="text-xs text-white/40">{studentsData.length} record{studentsData.length !== 1 ? 's' : ''}</span>
-        </div>
+      <SectionCard motionIndex={9}>
+        <SectionHeader title="Recent Student Onboardings" count={filteredStudents.length}>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search students..."
+              value={studentSearch}
+              onChange={(e) => {
+                setStudentSearch(e.target.value);
+                setStudentPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all"
+            />
+          </div>
+        </SectionHeader>
 
         {loadingStudents ? (
-          <div className="flex flex-col gap-3">{Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} className="h-12 w-full" />)}</div>
-        ) : studentsData.length === 0 ? (
-          <div className="text-center py-12 sm:py-16 text-white/30">
-            <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No student records found</p>
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonBar key={i} className="h-14 w-full" />
+            ))}
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div className="text-center py-16 text-text-muted">
+            <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">
+              {studentSearch ? 'No matching students found' : 'No student records found'}
+            </p>
           </div>
         ) : (
           <>
             {/* Mobile card layout */}
             <div className="flex flex-col gap-3 md:hidden">
-              {sortedStudents.map((record) => (
+              {paginatedStudents.map((record) => (
                 <StudentMobileCard key={record.id} record={record} />
               ))}
             </div>
 
             {/* Desktop table layout */}
-            <div className="hidden md:block overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-7">
-              <table className="w-full min-w-[900px]">
+            <div className="hidden md:block overflow-x-auto -mx-5 sm:-mx-7">
+              <table className="w-full min-w-[920px]">
                 <thead>
-                  <tr className="border-b border-white/10">
+                  <tr className="border-b border-white/[0.06]">
                     {[
                       { key: 'Full Name', label: 'Full Name' },
                       { key: 'Program Tier Purchased', label: 'Program Tier' },
-                      { key: 'Create Date', label: 'Create Date' },
+                      { key: 'Create Date', label: 'Created' },
                       { key: 'Best Email', label: 'Email' },
-                      { key: 'Skool Granted', label: 'Skool Granted' },
-                      { key: 'Kickoff Scheduled', label: 'Kickoff Scheduled' },
+                      { key: 'Skool Granted', label: 'Skool' },
+                      { key: 'Kickoff Scheduled', label: 'Kickoff' },
                     ].map(({ key, label }) => (
-                      <th key={key} className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-white/50 uppercase tracking-wider cursor-pointer hover:text-white/70 transition-colors" onClick={() => handleStudentSort(key)}>
+                      <th
+                        key={key}
+                        className="px-5 lg:px-7 py-3.5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-secondary transition-colors"
+                        onClick={() => handleStudentSort(key)}
+                      >
                         <span className="flex items-center gap-1.5">
                           {label}
                           <SortButton column={key} sortState={studentSort} onSort={handleStudentSort} />
                         </span>
                       </th>
                     ))}
-                    <th className="px-4 lg:px-6 py-3 text-right text-xs font-medium text-white/50 uppercase tracking-wider">Actions</th>
+                    <th className="px-5 lg:px-7 py-3.5 text-right text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
-                  {sortedStudents.map((record, idx) => (
-                    <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.01, duration: 0.25 }} className="hover:bg-white/[0.03] transition-colors">
-                      <td className="px-4 lg:px-6 py-3.5 text-sm font-medium text-white/90 whitespace-nowrap max-w-[160px] truncate">{record.fields['Full Name'] || '--'}</td>
-                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-300 border border-purple-500/25">
+                <tbody className="divide-y divide-white/[0.03]">
+                  {paginatedStudents.map((record, idx) => (
+                    <motion.tr
+                      key={record.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.02, duration: 0.3 }}
+                      className="hover:bg-white/[0.02] transition-colors"
+                    >
+                      <td className="px-5 lg:px-7 py-4 text-sm font-medium text-text-primary whitespace-nowrap max-w-[170px] truncate">
+                        {record.fields['Full Name'] || '--'}
+                      </td>
+                      <td className="px-5 lg:px-7 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#8B5CF6]/10 text-[#A78BFA] border border-[#8B5CF6]/20">
                           {record.fields['Program Tier Purchased'] || '--'}
                         </span>
                       </td>
-                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap">
-                        {record.fields['Create Date'] ? new Date(record.fields['Create Date']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'}
+                      <td className="px-5 lg:px-7 py-4 text-sm text-text-secondary whitespace-nowrap">
+                        {record.fields['Create Date']
+                          ? new Date(record.fields['Create Date']).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : '--'}
                       </td>
-                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap max-w-[200px] truncate">{record.fields['Best Email'] || '--'}</td>
-                      <td className="px-4 lg:px-6 py-3.5 text-center whitespace-nowrap">
+                      <td className="px-5 lg:px-7 py-4 text-sm text-text-secondary whitespace-nowrap max-w-[200px] truncate">
+                        {record.fields['Best Email'] || '--'}
+                      </td>
+                      <td className="px-5 lg:px-7 py-4 text-center whitespace-nowrap">
                         {record.fields['Skool Granted'] ? (
-                          <span className="text-emerald-400 text-base" title="Granted">&#10003;</span>
+                          <span className="text-emerald-400 text-base font-bold" title="Granted">
+                            {'✓'}
+                          </span>
                         ) : (
-                          <span className="text-red-400 text-base" title="Not Granted">&#10007;</span>
+                          <span className="text-red-400 text-base font-bold" title="Not Granted">
+                            {'✕'}
+                          </span>
                         )}
                       </td>
-                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap">
-                        {record.fields['Kickoff Scheduled'] ? new Date(record.fields['Kickoff Scheduled']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'}
+                      <td className="px-5 lg:px-7 py-4 text-sm text-text-secondary whitespace-nowrap">
+                        {record.fields['Kickoff Scheduled']
+                          ? new Date(record.fields['Kickoff Scheduled']).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : '--'}
                       </td>
-                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap text-right">
-                        <a href={`https://airtable.com/appgqED05AlPLi0ar/tblMLFYTeoqrtmgXQ/${record.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all">
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span className="hidden lg:inline">Open Lead</span>
-                        </a>
+                      <td className="px-5 lg:px-7 py-4 whitespace-nowrap text-right">
+                        <ActionButton
+                          href={`https://airtable.com/appgqED05AlPLi0ar/tblMLFYTeoqrtmgXQ/${record.id}`}
+                          icon={ExternalLink}
+                          label="Open Lead"
+                          variant="ghost"
+                        />
                       </td>
                     </motion.tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={studentPage}
+              totalPages={studentTotalPages}
+              totalItems={sortedStudents.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setStudentPage}
+            />
           </>
         )}
-      </GlassCard>
+      </SectionCard>
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
