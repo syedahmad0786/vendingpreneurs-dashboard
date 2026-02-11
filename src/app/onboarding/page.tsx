@@ -86,6 +86,30 @@ const STATUS_COLORS: Record<string, { fill: string; label: string }> = {
 
 const PAGE_SIZE = 10;
 
+function cycleSort(prev: SortState, column: string): SortState {
+  if (prev.column === column) {
+    const next = prev.direction === 'asc' ? 'desc' : prev.direction === 'desc' ? null : 'asc';
+    return { column: next ? column : '', direction: next };
+  }
+  return { column, direction: 'asc' };
+}
+
+function sortRecords(data: AirtableRecord[], sort: SortState, dateColumns: string[] = []) {
+  if (!sort.column || !sort.direction) return data;
+  return [...data].sort((a, b) => {
+    const aVal = a.fields[sort.column] ?? '';
+    const bVal = b.fields[sort.column] ?? '';
+    if (dateColumns.includes(sort.column)) {
+      const aD = new Date(aVal as string).getTime() || 0;
+      const bD = new Date(bVal as string).getTime() || 0;
+      return sort.direction === 'asc' ? aD - bD : bD - aD;
+    }
+    return sort.direction === 'asc'
+      ? String(aVal).localeCompare(String(bVal))
+      : String(bVal).localeCompare(String(aVal));
+  });
+}
+
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
@@ -609,44 +633,15 @@ export default function OnboardingPage() {
   }, [errorsData]);
 
   // ── Sorting ─────────────────────────────────────────────────────────────────
-  const cycleSort = (prev: SortState, column: string): SortState => {
-    if (prev.column === column) {
-      const next = prev.direction === 'asc' ? 'desc' : prev.direction === 'desc' ? null : 'asc';
-      return { column: next ? column : '', direction: next };
-    }
-    return { column, direction: 'asc' };
-  };
+  const handleErrorSort = useCallback((column: string) => {
+    setErrorSort((prev) => cycleSort(prev, column));
+    setErrorPage(1);
+  }, []);
 
-  const handleErrorSort = useCallback(
-    (column: string) => {
-      setErrorSort((prev) => cycleSort(prev, column));
-      setErrorPage(1);
-    },
-    []
-  );
-  const handleStudentSort = useCallback(
-    (column: string) => {
-      setStudentSort((prev) => cycleSort(prev, column));
-      setStudentPage(1);
-    },
-    []
-  );
-
-  const sortRecords = (data: AirtableRecord[], sort: SortState, dateColumns: string[] = []) => {
-    if (!sort.column || !sort.direction) return data;
-    return [...data].sort((a, b) => {
-      const aVal = a.fields[sort.column] ?? '';
-      const bVal = b.fields[sort.column] ?? '';
-      if (dateColumns.includes(sort.column)) {
-        const aD = new Date(aVal).getTime() || 0;
-        const bD = new Date(bVal).getTime() || 0;
-        return sort.direction === 'asc' ? aD - bD : bD - aD;
-      }
-      return sort.direction === 'asc'
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
-    });
-  };
+  const handleStudentSort = useCallback((column: string) => {
+    setStudentSort((prev) => cycleSort(prev, column));
+    setStudentPage(1);
+  }, []);
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filteredErrors = useMemo(() => {
@@ -1006,8 +1001,9 @@ export default function OnboardingPage() {
                     <Cell key={index} fill={entry.fill} />
                   ))}
                 </Pie>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <Tooltip
-                  content={({ active, payload }: { active?: boolean; payload?: Array<{ payload: { name: string; value: number; fill: string } }> }) => {
+                  content={({ active, payload }: any) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
                     return (
@@ -1022,8 +1018,9 @@ export default function OnboardingPage() {
                 <Legend
                   verticalAlign="bottom"
                   height={40}
-                  formatter={(value: string) => (
-                    <span className="text-xs text-text-muted">{value}</span>
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={(value: any) => (
+                    <span className="text-xs text-text-muted">{String(value)}</span>
                   )}
                 />
               </PieChart>
@@ -1104,12 +1101,9 @@ export default function OnboardingPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
-                  {paginatedErrors.map((record, idx) => (
-                    <motion.tr
+                  {paginatedErrors.map((record) => (
+                    <tr
                       key={record.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.02, duration: 0.3 }}
                       className="hover:bg-white/[0.02] transition-colors"
                     >
                       <td className="px-5 lg:px-7 py-4 text-sm font-medium text-text-primary whitespace-nowrap max-w-[180px] truncate">
@@ -1153,7 +1147,7 @@ export default function OnboardingPage() {
                           />
                         </div>
                       </td>
-                    </motion.tr>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -1240,12 +1234,9 @@ export default function OnboardingPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
-                  {paginatedStudents.map((record, idx) => (
-                    <motion.tr
+                  {paginatedStudents.map((record) => (
+                    <tr
                       key={record.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.02, duration: 0.3 }}
                       className="hover:bg-white/[0.02] transition-colors"
                     >
                       <td className="px-5 lg:px-7 py-4 text-sm font-medium text-text-primary whitespace-nowrap max-w-[170px] truncate">
@@ -1296,7 +1287,7 @@ export default function OnboardingPage() {
                           variant="ghost"
                         />
                       </td>
-                    </motion.tr>
+                    </tr>
                   ))}
                 </tbody>
               </table>

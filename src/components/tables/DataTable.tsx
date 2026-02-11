@@ -210,11 +210,8 @@ export default function DataTable({
               </tr>
             ) : (
               paginated.map((row, ri) => (
-                <motion.tr
+                <tr
                   key={ri}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: ri * 0.04, duration: 0.3 }}
                   onClick={() => onRowClick?.(row)}
                   className={`transition-colors duration-150 ${
                     onRowClick ? "cursor-pointer hover:bg-white/5" : ""
@@ -242,7 +239,7 @@ export default function DataTable({
                       </div>
                     </td>
                   )}
-                </motion.tr>
+                </tr>
               ))
             )}
           </tbody>
