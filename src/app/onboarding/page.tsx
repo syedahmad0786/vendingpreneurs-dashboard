@@ -93,7 +93,7 @@ const stagger = {
 
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col gap-3 pointer-events-none max-w-[calc(100vw-2rem)]">
       <AnimatePresence>
         {toasts.map((toast) => (
           <motion.div
@@ -102,7 +102,7 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast:
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 80, scale: 0.95 }}
             transition={{ duration: 0.3 }}
-            className={`pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-xl border backdrop-blur-xl shadow-2xl ${
+            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-xl shadow-2xl max-w-sm ${
               toast.type === 'success'
                 ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
                 : 'bg-red-500/15 border-red-500/30 text-red-300'
@@ -113,8 +113,8 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast:
             ) : (
               <XCircle className="w-5 h-5 shrink-0" />
             )}
-            <span className="text-sm font-medium">{toast.message}</span>
-            <button onClick={() => removeToast(toast.id)} className="ml-2 opacity-60 hover:opacity-100 transition-opacity">
+            <span className="text-sm font-medium truncate">{toast.message}</span>
+            <button onClick={() => removeToast(toast.id)} className="ml-2 shrink-0 opacity-60 hover:opacity-100 transition-opacity">
               <X className="w-4 h-4" />
             </button>
           </motion.div>
@@ -143,7 +143,7 @@ function useToasts() {
 
 function GlassCard({ children, className = '', motionIndex = 0 }: { children: React.ReactNode; className?: string; motionIndex?: number }) {
   return (
-    <motion.div custom={motionIndex} initial="hidden" animate="visible" variants={stagger} className={`bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 sm:p-7 ${className}`}>
+    <motion.div custom={motionIndex} initial="hidden" animate="visible" variants={stagger} className={`bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-6 lg:p-7 ${className}`}>
       {children}
     </motion.div>
   );
@@ -155,7 +155,7 @@ function SkeletonBar({ className = '' }: { className?: string }) {
 
 function LoadingCard() {
   return (
-    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-3">
+    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 sm:p-6 flex flex-col gap-3">
       <SkeletonBar className="h-4 w-24" />
       <SkeletonBar className="h-8 w-16" />
       <SkeletonBar className="h-3 w-32" />
@@ -207,6 +207,104 @@ function ChartTooltip({ active, payload, label }: any) {
           {p.name}: {p.value}
         </p>
       ))}
+    </div>
+  );
+}
+
+// ─── Mobile Card for Table Row (used on small screens) ────────────────────────
+
+function ErrorMobileCard({
+  record,
+  resubmitting,
+  onResubmit,
+}: {
+  record: AirtableRecord;
+  resubmitting: string | null;
+  onResubmit: (record: AirtableRecord) => void;
+}) {
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-white/90 truncate">{record.fields['Lead Name'] || '--'}</p>
+        <StatusBadge status={record.fields['Status'] || 'Unknown'} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <ErrorTypeBadge type={record.fields['Error Type'] || 'Unknown'} />
+      </div>
+      <p className="text-xs text-white/50 truncate">{record.fields['Email'] || '--'}</p>
+      <p className="text-xs text-white/40">
+        {record.fields['Timestamp']
+          ? new Date(record.fields['Timestamp']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : '--'}
+      </p>
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          onClick={() => onResubmit(record)}
+          disabled={resubmitting === record.id}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hover:border-blue-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {resubmitting === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          Resubmit
+        </button>
+        <a
+          href={`https://airtable.com/appgqED05AlPLi0ar/tblaQ6fpHGhRs56sH/${record.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          Airtable
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function StudentMobileCard({ record }: { record: AirtableRecord }) {
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-white/90 truncate">{record.fields['Full Name'] || '--'}</p>
+        <span className="inline-flex items-center shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-300 border border-purple-500/25">
+          {record.fields['Program Tier Purchased'] || '--'}
+        </span>
+      </div>
+      <p className="text-xs text-white/50 truncate">{record.fields['Best Email'] || '--'}</p>
+      <div className="flex items-center gap-4 text-xs text-white/40">
+        <span>
+          {'Created: '}
+          {record.fields['Create Date']
+            ? new Date(record.fields['Create Date']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '--'}
+        </span>
+        <span className="flex items-center gap-1">
+          {'Skool: '}
+          {record.fields['Skool Granted'] ? (
+            <span className="text-emerald-400">&#10003;</span>
+          ) : (
+            <span className="text-red-400">&#10007;</span>
+          )}
+        </span>
+      </div>
+      <div className="flex items-center gap-4 text-xs text-white/40">
+        <span>
+          {'Kickoff: '}
+          {record.fields['Kickoff Scheduled']
+            ? new Date(record.fields['Kickoff Scheduled']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '--'}
+        </span>
+      </div>
+      <div className="pt-1">
+        <a
+          href={`https://airtable.com/appgqED05AlPLi0ar/tblMLFYTeoqrtmgXQ/${record.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          Open Lead
+        </a>
+      </div>
     </div>
   );
 }
@@ -369,168 +467,189 @@ export default function OnboardingPage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-8">
-        {/* Page Header */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600">
-              <Users className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-text-primary">
-                Onboarding Deep Dive
-              </h1>
-              <p className="text-sm text-text-muted">
-                Track every stage of client onboarding, resolve errors, and monitor completions
-              </p>
-            </div>
+    <div className="flex flex-col gap-6 sm:gap-8">
+      {/* Page Header */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600">
+            <Users className="h-5 w-5 text-white" />
           </div>
-        </motion.div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-text-primary truncate">
+              Onboarding Deep Dive
+            </h1>
+            <p className="text-xs sm:text-sm text-text-muted leading-relaxed">
+              Track every stage of client onboarding, resolve errors, and monitor completions
+            </p>
+          </div>
+        </div>
+      </motion.div>
 
-        {/* ── Row 1: KPI Cards ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-          {loadingStats
-            ? Array.from({ length: 4 }).map((_, i) => <LoadingCard key={i} />)
-            : kpiCards.map((card, i) => (
-                <GlassCard key={card.label} motionIndex={i} className="relative overflow-hidden">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${card.bg} opacity-50`} />
-                  <div className="relative">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-medium uppercase tracking-wider text-white/50">{card.label}</span>
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${card.color}20` }}>
-                        <card.icon className="w-[18px] h-[18px]" style={{ color: card.color }} />
-                      </div>
+      {/* ── Row 1: KPI Cards ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+        {loadingStats
+          ? Array.from({ length: 4 }).map((_, i) => <LoadingCard key={i} />)
+          : kpiCards.map((card, i) => (
+              <GlassCard key={card.label} motionIndex={i} className="relative overflow-hidden">
+                <div className={`absolute inset-0 bg-gradient-to-br ${card.bg} opacity-50`} />
+                <div className="relative">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 leading-snug">{card.label}</span>
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${card.color}20` }}>
+                      <card.icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" style={{ color: card.color }} />
                     </div>
-                    <p className="text-3xl font-bold tabular-nums">{card.value}</p>
                   </div>
-                </GlassCard>
-              ))}
-        </div>
+                  <p className="text-2xl sm:text-3xl font-bold tabular-nums">{card.value}</p>
+                </div>
+              </GlassCard>
+            ))}
+      </div>
 
-        {/* ── Row 2: Stage Waterfall + Completion Trend ────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-          {/* Onboarding Stage Waterfall */}
-          <GlassCard motionIndex={4}>
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Onboarding Stage Waterfall</h2>
-            {loadingStats ? (
-              <div className="h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={waterfallData} barSize={48}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="phase" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
-                  <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                  <Bar dataKey="count" name="Clients" radius={[8, 8, 0, 0]}>
-                    {waterfallData.map((entry) => (
-                      <Cell key={entry.phase} fill={PHASE_COLORS[entry.phase] || '#3B82F6'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </GlassCard>
-
-          {/* Onboarding Completion Trend */}
-          <GlassCard motionIndex={5}>
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Onboarding Completion Trend</h2>
-            {loadingStats ? (
-              <div className="h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={completionTrend}>
-                  <defs>
-                    <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
-                  <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="completed" name="Completed" stroke="#10B981" strokeWidth={2.5} fill="url(#completedGrad)" dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#10B981', stroke: '#fff', strokeWidth: 2 }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </GlassCard>
-        </div>
-
-        {/* ── Row 3: Errors by Type + Error Status Breakdown ──────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-          {/* Errors by Type (Horizontal Bar) */}
-          <GlassCard motionIndex={6}>
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Errors by Type</h2>
-            {loadingErrors ? (
-              <div className="h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
-            ) : errorsByType.length === 0 ? (
-              <div className="h-64 flex items-center justify-center text-white/30 text-sm">No error data available</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(280, errorsByType.length * 42)}>
-                <BarChart data={errorsByType} layout="vertical" barSize={20} margin={{ left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="type" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} width={160} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                  <Bar dataKey="count" name="Errors" radius={[0, 6, 6, 0]}>
-                    {errorsByType.map((entry) => (
-                      <Cell key={entry.type} fill={ERROR_TYPE_COLORS[entry.type] || '#6B7280'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </GlassCard>
-
-          {/* Error Status Breakdown (Donut) */}
-          <GlassCard motionIndex={7}>
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Error Status Breakdown</h2>
-            {loadingErrors ? (
-              <div className="h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
-            ) : statusBreakdown.length === 0 ? (
-              <div className="h-64 flex items-center justify-center text-white/30 text-sm">No error data available</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie data={statusBreakdown} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={3} dataKey="value" stroke="none">
-                    {statusBreakdown.map((entry, index) => (
-                      <Cell key={index} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    content={({ active, payload }: any) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload;
-                      return (
-                        <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
-                          <p className="text-sm font-semibold" style={{ color: d.fill }}>{d.name}: {d.value}</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} formatter={(value: string) => <span className="text-xs text-white/60">{value}</span>} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </GlassCard>
-        </div>
-
-        {/* ── Row 4: Onboarding Errors Table ──────────────────────────────── */}
-        <GlassCard motionIndex={8} className="overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Onboarding Errors</h2>
-            <span className="text-xs text-white/40">{errorsData.length} record{errorsData.length !== 1 ? 's' : ''}</span>
-          </div>
-
-          {loadingErrors ? (
-            <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} className="h-12 w-full" />)}</div>
-          ) : errorsData.length === 0 ? (
-            <div className="text-center py-16 text-white/30">
-              <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No onboarding errors found</p>
-            </div>
+      {/* ── Row 2: Stage Waterfall + Completion Trend ────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 lg:gap-6">
+        {/* Onboarding Stage Waterfall */}
+        <GlassCard motionIndex={4}>
+          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Onboarding Stage Waterfall</h2>
+          {loadingStats ? (
+            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
           ) : (
-            <div className="overflow-x-auto -mx-6">
+            <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="min-w-[320px]">
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={waterfallData} barSize={36} margin={{ left: -10, right: 10, top: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis dataKey="phase" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} interval={0} />
+                    <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} width={35} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Bar dataKey="count" name="Clients" radius={[8, 8, 0, 0]}>
+                      {waterfallData.map((entry) => (
+                        <Cell key={entry.phase} fill={PHASE_COLORS[entry.phase] || '#3B82F6'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </GlassCard>
+
+        {/* Onboarding Completion Trend */}
+        <GlassCard motionIndex={5}>
+          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Onboarding Completion Trend</h2>
+          {loadingStats ? (
+            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+          ) : (
+            <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="min-w-[320px]">
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart data={completionTrend} margin={{ left: -10, right: 10, top: 5, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
+                    <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} width={35} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area type="monotone" dataKey="completed" name="Completed" stroke="#10B981" strokeWidth={2.5} fill="url(#completedGrad)" dot={{ r: 3, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#10B981', stroke: '#fff', strokeWidth: 2 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </GlassCard>
+      </div>
+
+      {/* ── Row 3: Errors by Type + Error Status Breakdown ──────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 lg:gap-6">
+        {/* Errors by Type (Horizontal Bar) */}
+        <GlassCard motionIndex={6}>
+          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Errors by Type</h2>
+          {loadingErrors ? (
+            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+          ) : errorsByType.length === 0 ? (
+            <div className="h-56 sm:h-64 flex items-center justify-center text-white/30 text-sm">No error data available</div>
+          ) : (
+            <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="min-w-[360px]">
+                <ResponsiveContainer width="100%" height={Math.max(260, errorsByType.length * 42)}>
+                  <BarChart data={errorsByType} layout="vertical" barSize={20} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                    <XAxis type="number" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="type" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 10 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} width={130} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Bar dataKey="count" name="Errors" radius={[0, 6, 6, 0]}>
+                      {errorsByType.map((entry) => (
+                        <Cell key={entry.type} fill={ERROR_TYPE_COLORS[entry.type] || '#6B7280'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </GlassCard>
+
+        {/* Error Status Breakdown (Donut) */}
+        <GlassCard motionIndex={7}>
+          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Error Status Breakdown</h2>
+          {loadingErrors ? (
+            <div className="h-56 sm:h-64 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>
+          ) : statusBreakdown.length === 0 ? (
+            <div className="h-56 sm:h-64 flex items-center justify-center text-white/30 text-sm">No error data available</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={statusBreakdown} cx="50%" cy="45%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none">
+                  {statusBreakdown.map((entry, index) => (
+                    <Cell key={index} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={({ active, payload }: any) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
+                        <p className="text-sm font-semibold" style={{ color: d.fill }}>{d.name}: {d.value}</p>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend verticalAlign="bottom" height={36} formatter={(value: string) => <span className="text-xs text-white/60">{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </GlassCard>
+      </div>
+
+      {/* ── Row 4: Onboarding Errors Table ──────────────────────────────── */}
+      <GlassCard motionIndex={8}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-5 gap-2">
+          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider">Onboarding Errors</h2>
+          <span className="text-xs text-white/40">{errorsData.length} record{errorsData.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {loadingErrors ? (
+          <div className="flex flex-col gap-3">{Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} className="h-12 w-full" />)}</div>
+        ) : errorsData.length === 0 ? (
+          <div className="text-center py-12 sm:py-16 text-white/30">
+            <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p className="text-sm">No onboarding errors found</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile card layout */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {sortedErrors.map((record) => (
+                <ErrorMobileCard key={record.id} record={record} resubmitting={resubmitting} onResubmit={handleResubmit} />
+              ))}
+            </div>
+
+            {/* Desktop table layout */}
+            <div className="hidden md:block overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-7">
               <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-white/10">
@@ -541,35 +660,35 @@ export default function OnboardingPage() {
                       { key: 'Email', label: 'Email' },
                       { key: 'Timestamp', label: 'Timestamp' },
                     ].map(({ key, label }) => (
-                      <th key={key} className="px-6 py-3 text-left text-xs font-medium text-white/50 uppercase tracking-wider cursor-pointer hover:text-white/70 transition-colors" onClick={() => handleErrorSort(key)}>
+                      <th key={key} className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-white/50 uppercase tracking-wider cursor-pointer hover:text-white/70 transition-colors" onClick={() => handleErrorSort(key)}>
                         <span className="flex items-center gap-1.5">
                           {label}
                           <SortButton column={key} sortState={errorSort} onSort={handleErrorSort} />
                         </span>
                       </th>
                     ))}
-                    <th className="px-6 py-3 text-right text-xs font-medium text-white/50 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 lg:px-6 py-3 text-right text-xs font-medium text-white/50 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {sortedErrors.map((record, idx) => (
                     <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.01, duration: 0.25 }} className="hover:bg-white/[0.03] transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-white/90 whitespace-nowrap">{record.fields['Lead Name'] || '--'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap"><ErrorTypeBadge type={record.fields['Error Type'] || 'Unknown'} /></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={record.fields['Status'] || 'Unknown'} /></td>
-                      <td className="px-6 py-4 text-sm text-white/60 whitespace-nowrap">{record.fields['Email'] || '--'}</td>
-                      <td className="px-6 py-4 text-sm text-white/50 whitespace-nowrap">
+                      <td className="px-4 lg:px-6 py-3.5 text-sm font-medium text-white/90 whitespace-nowrap max-w-[180px] truncate">{record.fields['Lead Name'] || '--'}</td>
+                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap"><ErrorTypeBadge type={record.fields['Error Type'] || 'Unknown'} /></td>
+                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap"><StatusBadge status={record.fields['Status'] || 'Unknown'} /></td>
+                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap max-w-[200px] truncate">{record.fields['Email'] || '--'}</td>
+                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/50 whitespace-nowrap">
                         {record.fields['Timestamp'] ? new Date(record.fields['Timestamp']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => handleResubmit(record)} disabled={resubmitting === record.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25 hover:border-blue-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                             {resubmitting === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                            Resubmit
+                            <span className="hidden lg:inline">Resubmit</span>
                           </button>
                           <a href={`https://airtable.com/appgqED05AlPLi0ar/tblaQ6fpHGhRs56sH/${record.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all">
                             <ExternalLink className="w-3.5 h-3.5" />
-                            Airtable
+                            <span className="hidden lg:inline">Airtable</span>
                           </a>
                         </div>
                       </td>
@@ -578,25 +697,35 @@ export default function OnboardingPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </GlassCard>
+          </>
+        )}
+      </GlassCard>
 
-        {/* ── Row 5: Recent Student Onboardings ───────────────────────────── */}
-        <GlassCard motionIndex={9} className="overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
-            <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Recent Student Onboardings</h2>
-            <span className="text-xs text-white/40">{studentsData.length} record{studentsData.length !== 1 ? 's' : ''}</span>
+      {/* ── Row 5: Recent Student Onboardings ───────────────────────────── */}
+      <GlassCard motionIndex={9}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-5 gap-2">
+          <h2 className="text-xs sm:text-sm font-semibold text-white/70 uppercase tracking-wider">Recent Student Onboardings</h2>
+          <span className="text-xs text-white/40">{studentsData.length} record{studentsData.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {loadingStudents ? (
+          <div className="flex flex-col gap-3">{Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} className="h-12 w-full" />)}</div>
+        ) : studentsData.length === 0 ? (
+          <div className="text-center py-12 sm:py-16 text-white/30">
+            <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p className="text-sm">No student records found</p>
           </div>
-
-          {loadingStudents ? (
-            <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} className="h-12 w-full" />)}</div>
-          ) : studentsData.length === 0 ? (
-            <div className="text-center py-16 text-white/30">
-              <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No student records found</p>
+        ) : (
+          <>
+            {/* Mobile card layout */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {sortedStudents.map((record) => (
+                <StudentMobileCard key={record.id} record={record} />
+              ))}
             </div>
-          ) : (
-            <div className="overflow-x-auto -mx-6">
+
+            {/* Desktop table layout */}
+            <div className="hidden md:block overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-7">
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-white/10">
@@ -608,43 +737,43 @@ export default function OnboardingPage() {
                       { key: 'Skool Granted', label: 'Skool Granted' },
                       { key: 'Kickoff Scheduled', label: 'Kickoff Scheduled' },
                     ].map(({ key, label }) => (
-                      <th key={key} className="px-6 py-3 text-left text-xs font-medium text-white/50 uppercase tracking-wider cursor-pointer hover:text-white/70 transition-colors" onClick={() => handleStudentSort(key)}>
+                      <th key={key} className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-white/50 uppercase tracking-wider cursor-pointer hover:text-white/70 transition-colors" onClick={() => handleStudentSort(key)}>
                         <span className="flex items-center gap-1.5">
                           {label}
                           <SortButton column={key} sortState={studentSort} onSort={handleStudentSort} />
                         </span>
                       </th>
                     ))}
-                    <th className="px-6 py-3 text-right text-xs font-medium text-white/50 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 lg:px-6 py-3 text-right text-xs font-medium text-white/50 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {sortedStudents.map((record, idx) => (
                     <motion.tr key={record.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.01, duration: 0.25 }} className="hover:bg-white/[0.03] transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-white/90 whitespace-nowrap">{record.fields['Full Name'] || '--'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 lg:px-6 py-3.5 text-sm font-medium text-white/90 whitespace-nowrap max-w-[160px] truncate">{record.fields['Full Name'] || '--'}</td>
+                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-300 border border-purple-500/25">
                           {record.fields['Program Tier Purchased'] || '--'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-white/60 whitespace-nowrap">
+                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap">
                         {record.fields['Create Date'] ? new Date(record.fields['Create Date']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-white/60 whitespace-nowrap">{record.fields['Best Email'] || '--'}</td>
-                      <td className="px-6 py-4 text-center whitespace-nowrap">
+                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap max-w-[200px] truncate">{record.fields['Best Email'] || '--'}</td>
+                      <td className="px-4 lg:px-6 py-3.5 text-center whitespace-nowrap">
                         {record.fields['Skool Granted'] ? (
                           <span className="text-emerald-400 text-base" title="Granted">&#10003;</span>
                         ) : (
                           <span className="text-red-400 text-base" title="Not Granted">&#10007;</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-white/60 whitespace-nowrap">
+                      <td className="px-4 lg:px-6 py-3.5 text-sm text-white/60 whitespace-nowrap">
                         {record.fields['Kickoff Scheduled'] ? new Date(record.fields['Kickoff Scheduled']).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-4 lg:px-6 py-3.5 whitespace-nowrap text-right">
                         <a href={`https://airtable.com/appgqED05AlPLi0ar/tblMLFYTeoqrtmgXQ/${record.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-white/60 border border-white/10 hover:bg-white/10 hover:text-white/80 transition-all">
                           <ExternalLink className="w-3.5 h-3.5" />
-                          Open Lead
+                          <span className="hidden lg:inline">Open Lead</span>
                         </a>
                       </td>
                     </motion.tr>
@@ -652,8 +781,10 @@ export default function OnboardingPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </GlassCard>
+          </>
+        )}
+      </GlassCard>
+
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
