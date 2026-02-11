@@ -14,6 +14,7 @@ import {
 /* -------------------------------------------------- */
 /*  Types                                             */
 /* -------------------------------------------------- */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ColumnDef {
   key: string;
   label: string;
@@ -32,6 +33,7 @@ interface DataTableProps {
   loading?: boolean;
   emptyMessage?: string;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 type SortDir = "asc" | "desc" | null;
 

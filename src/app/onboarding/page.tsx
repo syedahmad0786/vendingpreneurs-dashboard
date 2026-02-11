@@ -46,6 +46,7 @@ interface Toast {
 
 interface AirtableRecord {
   id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fields: Record<string, any>;
 }
 
@@ -274,6 +275,7 @@ function SortButton({
   );
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
@@ -287,6 +289,7 @@ function ChartTooltip({ active, payload, label }: any) {
     </div>
   );
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 function ActionButton({
   onClick,
@@ -510,7 +513,8 @@ function Pagination({
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
-  const [stats, setStats] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [stats, setStats] = useState<Record<string, any> | null>(null);
   const [errorsData, setErrorsData] = useState<AirtableRecord[]>([]);
   const [studentsData, setStudentsData] = useState<AirtableRecord[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -777,7 +781,7 @@ export default function OnboardingPage() {
         className="flex items-center gap-4"
       >
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[#06B6D4] shadow-lg shadow-primary/20">
-          <Users className="h-5.5 w-5.5 text-white" />
+          <Users className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-text-primary text-balance">
@@ -1003,7 +1007,7 @@ export default function OnboardingPage() {
                   ))}
                 </Pie>
                 <Tooltip
-                  content={({ active, payload }: any) => {
+                  content={({ active, payload }: { active?: boolean; payload?: Array<{ payload: { name: string; value: number; fill: string } }> }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0].payload;
                     return (
