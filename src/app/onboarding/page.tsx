@@ -43,6 +43,7 @@ interface Toast {
 
 interface AirtableRecord {
   id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fields: Record<string, any>;
 }
 
@@ -197,12 +198,25 @@ function SortButton({ column, sortState, onSort }: { column: string; sortState: 
   );
 }
 
-function ChartTooltip({ active, payload, label }: any) {
+interface ChartTooltipPayload {
+  name: string;
+  value: number;
+  color?: string;
+  fill?: string;
+}
+
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: ChartTooltipPayload[];
+  label?: string;
+}
+
+function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
       <p className="text-xs text-white/60 mb-1">{label}</p>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p: ChartTooltipPayload, i: number) => (
         <p key={i} className="text-sm font-semibold" style={{ color: p.color || p.fill }}>
           {p.name}: {p.value}
         </p>
@@ -214,6 +228,7 @@ function ChartTooltip({ active, payload, label }: any) {
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [stats, setStats] = useState<any>(null);
   const [errorsData, setErrorsData] = useState<AirtableRecord[]>([]);
   const [studentsData, setStudentsData] = useState<AirtableRecord[]>([]);
@@ -498,6 +513,7 @@ export default function OnboardingPage() {
                     ))}
                   </Pie>
                   <Tooltip
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     content={({ active, payload }: any) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0].payload;

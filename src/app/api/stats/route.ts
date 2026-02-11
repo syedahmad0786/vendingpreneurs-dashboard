@@ -24,7 +24,6 @@ import {
   countByField,
   sumField,
   avgField,
-  filterRecords,
   pct,
   currentMonthRecords,
   recentRecords,
@@ -115,11 +114,6 @@ export async function GET(request: Request) {
     // =================================================================
     // OVERVIEW
     // =================================================================
-    // Try multiple possible field names for client status
-    const clientStatusCounts = {
-      ...countByField(clients, "Status"),
-      ...countByField(clients, "Program Stages"),
-    };
     // Count active clients by checking multiple possible status values
     const activeClients = clients.filter((r) => {
       const status = String(r.fields["Status"] ?? "");

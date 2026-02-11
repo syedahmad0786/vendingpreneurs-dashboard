@@ -17,17 +17,21 @@ import {
 interface ColumnDef {
   key: string;
   label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   render?: (value: any, record: any) => React.ReactNode;
   sortable?: boolean;
 }
 
 interface DataTableProps {
   columns: ColumnDef[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any[];
   searchable?: boolean;
   searchFields?: string[];
   pageSize?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   actions?: (record: any) => React.ReactNode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onRowClick?: (record: any) => void;
   loading?: boolean;
   emptyMessage?: string;

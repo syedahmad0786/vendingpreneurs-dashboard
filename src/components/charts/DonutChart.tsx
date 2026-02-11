@@ -58,11 +58,6 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   );
 }
 
-interface LegendPayloadItem {
-  value: string;
-  color?: string;
-}
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function renderLegend(props: any) {
   const { payload } = props;

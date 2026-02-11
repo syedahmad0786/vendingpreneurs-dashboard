@@ -41,8 +41,11 @@ function useCountUp(target: number, duration = 1500): number {
 
   useEffect(() => {
     if (target === 0) {
-      setDisplay(0);
-      return;
+      // Use requestAnimationFrame to avoid synchronous setState in effect
+      rafRef.current = requestAnimationFrame(() => setDisplay(0));
+      return () => {
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      };
     }
     startRef.current = null;
 

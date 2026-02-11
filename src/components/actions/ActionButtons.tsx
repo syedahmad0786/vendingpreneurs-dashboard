@@ -9,6 +9,7 @@ import { RotateCcw, ExternalLink, CheckCircle, XCircle, Loader2 } from "lucide-r
    ==================================================== */
 
 interface ResubmitButtonProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   record: { id: string; fields: Record<string, any> };
   onSuccess?: () => void;
 }

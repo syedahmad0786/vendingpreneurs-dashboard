@@ -51,9 +51,14 @@ export default function Header() {
     return pathname.startsWith(href);
   };
 
-  // Close mobile menu on route change
+  // Close mobile menu on route change — synchronizing UI with router state
+  const prevPathnameRef = React.useRef(pathname);
   useEffect(() => {
-    setMobileOpen(false);
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMobileOpen(false);
+    }
   }, [pathname]);
 
   // Track minutes since last refresh

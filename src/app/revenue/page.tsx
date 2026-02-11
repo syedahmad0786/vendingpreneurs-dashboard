@@ -166,7 +166,7 @@ export default function RevenuePage() {
   const totalClients = stats?.totalClients ?? 1;
   const avgRevenuePerClient = Math.round(totalRevenue / totalClients);
   const totalMachines = stats?.totalMachines ?? 0;
-  const membershipData = stats?.clientsByMembership ?? {};
+  const membershipData = useMemo(() => stats?.clientsByMembership ?? {}, [stats?.clientsByMembership]);
 
   // Chart data: Membership level bar chart
   const membershipBarData = useMemo(() => {

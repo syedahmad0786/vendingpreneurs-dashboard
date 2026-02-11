@@ -155,8 +155,8 @@ export default function NationalContractsPage() {
 
   // Derived KPIs
   const nationalProperties = stats?.nationalProperties ?? 0;
-  const byStage = stats?.nationalByStage ?? {};
-  const byGroup = stats?.nationalByPropertyGroup ?? {};
+  const byStage = useMemo(() => stats?.nationalByStage ?? {}, [stats?.nationalByStage]);
+  const byGroup = useMemo(() => stats?.nationalByPropertyGroup ?? {}, [stats?.nationalByPropertyGroup]);
 
   const completeCount = byStage["Complete"] ?? 0;
   const pipelineCount = useMemo(() => {
