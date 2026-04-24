@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-label="Modern Amenities">
+  <!-- Modern Amenities brand mark.
+       Two forms: the green M with yellow internal chevron on the left,
+       and the yellow A with a green internal triangle on the right.
+       Colours: forest green #1F6E2C, signal yellow #F4C71A. -->
+  <defs>
+    <style>
+      .ma-green { fill: #1F6E2C; }
+      .ma-yellow { fill: #F4C71A; }
+    </style>
+  </defs>
+
+  <!-- ================= LEFT M ================= -->
+  <!-- Outer green M — two diagonal legs meeting at a point near the centre bottom-ish -->
+  <!-- Left leg: top-left block, sweeps diagonally to centre, back up, form a V shape -->
+  <path class="ma-green" d="
+    M 0 0
+    L 220 0
+    L 560 680
+    L 480 680
+    L 220 240
+    L 220 700
+    L 0 700
+    Z
+  "/>
+  <!-- Right leg of M -->
+  <path class="ma-green" d="
+    M 560 680
+    L 640 680
+    L 680 430
+    L 680 700
+    L 480 700
+    L 480 680
+    Z
+  "/>
+  <!-- Yellow downward chevron (the V inside the M) — bigger so it dominates the top -->
+  <path class="ma-yellow" d="
+    M 55 5
+    L 555 5
+    L 305 560
+    L 260 460
+    L 460 55
+    L 100 55
+    Z
+  "/>
+
+  <!-- ================= RIGHT A ================= -->
+  <!-- Outer yellow A -->
+  <path class="ma-yellow" d="
+    M 620 700
+    L 760 700
+    L 790 540
+    L 1040 540
+    L 1070 700
+    L 1200 700
+    L 980 5
+    L 840 5
+    Z
+  "/>
+  <!-- Green inverted triangle cut out of the top of the A -->
+  <path class="ma-green" d="
+    M 845 120
+    L 975 120
+    L 910 480
+    Z
+  "/>
+  <!-- Green slash on the bottom-left of the A to make it feel connected to the M -->
+  <path class="ma-green" d="
+    M 620 700
+    L 810 530
+    L 790 620
+    Z
+  "/>
+</svg>
