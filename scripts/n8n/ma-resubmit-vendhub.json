@@ -1,0 +1,56 @@
+{
+  "name": "MA — Resubmit: VendHub (PLACEHOLDER)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Resubmit VendHub (PLACEHOLDER)\n\nPOST /webhook/ma-resubmit-vendhub\n\nStub workflow — replies 501 until the Modern Amenities team provides the VendHub API host, auth scheme, and account provisioning endpoint.\n\nTODO when credentials arrive:\n1. Swap the stub `HTTP Request` node with a real `POST /api/v1/accounts` (or equivalent) using a stored VendHub credential.\n2. Update the Student Onboarding record to store `VendHub Account ID` (add field to Airtable first).\n3. Resolve the linked error record.",
+        "height": 320,
+        "width": 460,
+        "color": 3
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-260, 80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-resubmit-vendhub",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook — Resubmit VendHub",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "webhookId": "ma-resubmit-vendhub-01"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "success", "value": "false" },
+            { "name": "step", "value": "vendhub" },
+            { "name": "message", "value": "VendHub integration not yet configured. Provide API host + credentials to complete." }
+          ]
+        }
+      },
+      "id": "respond-pending",
+      "name": "Respond 501 Not Implemented",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300]
+    }
+  ],
+  "connections": {
+    "Webhook — Resubmit VendHub": { "main": [[{ "node": "Respond 501 Not Implemented", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "modernAmenities": true }
+}

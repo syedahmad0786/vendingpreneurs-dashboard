@@ -1,0 +1,163 @@
+{
+  "name": "MA — Resubmit: Mighty Networks",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Resubmit Mighty Networks\n\nPOST /webhook/ma-resubmit-mn\n\nBody: { leadRecordId, errorRecordId?, context: { fullName, email, programTier } }\n\n1. Re-send MN invite (plan chosen by tier — Gold/Platinum = 1960485, else 1960487).\n2. Update Student Onboarding with MN Invite ID + Granted.\n3. Mark linked error record Resolved.\n\nCredentials:\n- 'Mighty Networks API' (HTTP Header Auth)\n- 'Airtable Token' (PAT)",
+        "height": 320,
+        "width": 420,
+        "color": 4
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-resubmit-mn",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook — Resubmit MN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "webhookId": "ma-resubmit-mn-01"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "leadRecordId", "value": "={{ $json.body.leadRecordId }}", "type": "string" },
+            { "id": "a2", "name": "errorRecordId", "value": "={{ $json.body.errorRecordId || '' }}", "type": "string" },
+            { "id": "a3", "name": "email", "value": "={{ $json.body.context?.email || '' }}", "type": "string" },
+            { "id": "a4", "name": "fullName", "value": "={{ $json.body.context?.fullName || '' }}", "type": "string" },
+            { "id": "a5", "name": "tier", "value": "={{ ($json.body.context?.programTier || '').toLowerCase() }}", "type": "string" },
+            { "id": "a6", "name": "plan_id", "value": "={{ ($json.body.context?.programTier || '').toLowerCase().includes('gold') || ($json.body.context?.programTier || '').toLowerCase().includes('platinum') ? 1960485 : 1960487 }}", "type": "number" }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "set",
+      "name": "Parse Payload + Plan",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mightynetworks.com/api/v1/members/invite_to_plan",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { email: $json.email, name: $json.fullName, plan_id: $json.plan_id } }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "mn-invite",
+      "name": "Invite to Mighty Networks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.invite_id || $json.id || '' }}",
+              "operator": { "type": "string", "operation": "isNotEmpty" }
+            }
+          ]
+        }
+      },
+      "id": "if-success",
+      "name": "MN Invite OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "columns": "={{ { 'id': $('Parse Payload + Plan').item.json.leadRecordId, 'MN Invite Granted': 'OK', 'MN Invite ID': String($json.invite_id || $json.id) } }}"
+      },
+      "id": "update-student",
+      "name": "Set MN Fields",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [880, 220]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'id': $('Parse Payload + Plan').item.json.errorRecordId, 'Status': 'Resolved', 'Resolution Notes': 'MN invite resubmitted at ' + $now.toISO() } }}"
+      },
+      "id": "resolve-error",
+      "name": "Mark Error Resolved",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1100, 220]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "create",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'Lead Name': $('Parse Payload + Plan').item.json.fullName, 'Email': $('Parse Payload + Plan').item.json.email, 'Error Type': 'Mighty Networks invite', 'Error Message': 'MN invite retry failed', 'Error Node': 'Invite to Mighty Networks', 'Raw Error Data': JSON.stringify($json).slice(0,3000), 'Timestamp': $now.toISO(), 'Status': 'New' } }}"
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [880, 380]
+    },
+    {
+      "parameters": { "keepOnlySet": true, "values": { "string": [{ "name": "success", "value": "true" }, { "name": "step", "value": "mighty_networks" }] } },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 220]
+    },
+    {
+      "parameters": { "keepOnlySet": true, "values": { "string": [{ "name": "success", "value": "false" }, { "name": "step", "value": "mighty_networks" }, { "name": "message", "value": "Mighty Networks invite failed" }] } },
+      "id": "respond-err",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, 380]
+    }
+  ],
+  "connections": {
+    "Webhook — Resubmit MN": { "main": [[{ "node": "Parse Payload + Plan", "type": "main", "index": 0 }]] },
+    "Parse Payload + Plan": { "main": [[{ "node": "Invite to Mighty Networks", "type": "main", "index": 0 }]] },
+    "Invite to Mighty Networks": { "main": [[{ "node": "MN Invite OK?", "type": "main", "index": 0 }]] },
+    "MN Invite OK?": {
+      "main": [
+        [{ "node": "Set MN Fields", "type": "main", "index": 0 }],
+        [{ "node": "Log Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Set MN Fields": { "main": [[{ "node": "Mark Error Resolved", "type": "main", "index": 0 }]] },
+    "Mark Error Resolved": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] },
+    "Log Error": { "main": [[{ "node": "Respond Error", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "modernAmenities": true }
+}

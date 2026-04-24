@@ -1,0 +1,267 @@
+{
+  "name": "MA — Auto-Add Missing to Intercom",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Auto-Add Missing to Intercom\n\n**Trigger:** hourly cron + `POST /webhook/ma-auto-add-intercom`\n\n**What it does**\nFinds every Student Onboarding row where:\n- `Intercom Verified` is `Not Found` or empty, AND\n- `Intercome Failed?` is not true, AND\n- `Best Email` is present, AND\n- No `Intercom Synced At` timestamp\n\nFor each one:\n1. POST to Intercom `/contacts` to create (or search-then-create) the contact.\n2. Write `Intercom Synced At` = now, `Intercom Verified` = `Verified` on the Student Onboarding row.\n3. Find any open Onboarding Errors row with Error Type = 'Intercom Contact' for this lead and mark Resolved with note 'Auto-added by MA Auto-Add workflow'.\n\n**Leads that CAN'T be auto-added (and why)**\n- Rows with no `Best Email` are skipped — the original onboarding never received an email from Close CRM. Fix by either repairing the Close lead email or running the Close-refresh workflow to repull email.\n- Rows with `Intercome Failed? = true` are skipped — the upstream onboarding explicitly flagged a hard failure (usually Intercom rejected the email format).\n\n**Credentials required**\n- Intercom (HTTP Header Auth, Authorization: Bearer <token>)\n- Airtable PAT",
+        "height": 520,
+        "width": 520,
+        "color": 5
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-340, 60]
+    },
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] }
+      },
+      "id": "cron",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 260]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-auto-add-intercom",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook — Auto-Add",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 420],
+      "webhookId": "ma-auto-add-intercom-01"
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "search",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "filterByFormula": "=AND({Best Email}!='', NOT({Intercom Synced At}), NOT({Intercome Failed?}), OR({Intercom Verified}='Not Found', {Intercom Verified}=''))",
+        "returnAll": true,
+        "options": {
+          "fields": ["Full Name", "Best Email", "Program Tier Purchased", "Client ID"]
+        }
+      },
+      "id": "find-missing",
+      "name": "Find Missing from Intercom",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [240, 340]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "split",
+      "name": "Per-lead Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [460, 340]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "recordId", "value": "={{ $json.id }}", "type": "string" },
+            { "id": "a2", "name": "email", "value": "={{ ($json.fields['Best Email'] || '').toLowerCase().trim() }}", "type": "string" },
+            { "id": "a3", "name": "fullName", "value": "={{ $json.fields['Full Name'] || '' }}", "type": "string" },
+            { "id": "a4", "name": "tier", "value": "={{ $json.fields['Program Tier Purchased'] || '' }}", "type": "string" },
+            { "id": "a5", "name": "clientId", "value": "={{ $json.fields['Client ID'] || '' }}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "ctx",
+      "name": "Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.intercom.io/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Intercom-Version", "value": "2.10" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: { field: 'email', operator: '=', value: $('Context').item.json.email } } }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "search",
+      "name": "Intercom Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [900, 340]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            { "leftValue": "={{ ($json.data || []).length }}", "operator": { "type": "number", "operation": "gt" }, "rightValue": 0 }
+          ]
+        }
+      },
+      "id": "exists",
+      "name": "Already in Intercom?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1120, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.intercom.io/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Intercom-Version", "value": "2.10" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { role: 'user', email: $('Context').item.json.email, name: $('Context').item.json.fullName, external_id: $('Context').item.json.clientId || undefined, custom_attributes: { 'Program Tier': $('Context').item.json.tier, 'Source': 'Auto-Add Missing (n8n)' } } }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "create",
+      "name": "Create in Intercom",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1340, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            { "leftValue": "={{ $json.id || $json.type === 'contact' ? 'ok' : 'no' }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "ok" }
+          ]
+        }
+      },
+      "id": "create-ok",
+      "name": "Create succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1560, 440]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "columns": "={{ { 'id': $('Context').item.json.recordId, 'Intercom Synced At': $now.toISO(), 'Intercom Verified': 'Verified', 'Intercom Verified At': $now.toISO() } }}"
+      },
+      "id": "mark-success",
+      "name": "Mark Verified",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1780, 240]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "search",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "filterByFormula": "=AND({Email}='{{ $('Context').item.json.email }}', {Error Type}='Intercom Contact', OR({Status}='New', {Status}='Investigating'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "find-errs",
+      "name": "Find Open Error Rows",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [2000, 240]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'id': $json.id, 'Status': 'Resolved', 'Resolution Notes': 'Auto-added by MA Auto-Add Missing to Intercom at ' + $now.toISO() } }}"
+      },
+      "id": "resolve-errs",
+      "name": "Resolve Error Rows",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [2220, 240]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "create",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'Lead Name': $('Context').item.json.fullName, 'Email': $('Context').item.json.email, 'Error Type': 'Intercom Contact', 'Error Message': 'Intercom rejected auto-add: ' + ( ($json.errors || [{message:'unknown'}])[0].message || JSON.stringify($json).slice(0,200) ), 'Error Node': 'Create in Intercom (auto-add)', 'Raw Error Data': JSON.stringify($json).slice(0,3000), 'Timestamp': $now.toISO(), 'Status': 'New' } }}"
+      },
+      "id": "log-fail",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1780, 540]
+    },
+    {
+      "parameters": { "amount": 2, "unit": "seconds" },
+      "id": "throttle",
+      "name": "Throttle",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2440, 340]
+    }
+  ],
+  "connections": {
+    "Every hour": { "main": [[{ "node": "Find Missing from Intercom", "type": "main", "index": 0 }]] },
+    "Webhook — Auto-Add": { "main": [[{ "node": "Find Missing from Intercom", "type": "main", "index": 0 }]] },
+    "Find Missing from Intercom": { "main": [[{ "node": "Per-lead Loop", "type": "main", "index": 0 }]] },
+    "Per-lead Loop": {
+      "main": [
+        [{ "node": "Context", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Context": { "main": [[{ "node": "Intercom Search", "type": "main", "index": 0 }]] },
+    "Intercom Search": { "main": [[{ "node": "Already in Intercom?", "type": "main", "index": 0 }]] },
+    "Already in Intercom?": {
+      "main": [
+        [{ "node": "Mark Verified", "type": "main", "index": 0 }],
+        [{ "node": "Create in Intercom", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create in Intercom": { "main": [[{ "node": "Create succeeded?", "type": "main", "index": 0 }]] },
+    "Create succeeded?": {
+      "main": [
+        [{ "node": "Mark Verified", "type": "main", "index": 0 }],
+        [{ "node": "Log Failure", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark Verified": { "main": [[{ "node": "Find Open Error Rows", "type": "main", "index": 0 }]] },
+    "Find Open Error Rows": { "main": [[{ "node": "Resolve Error Rows", "type": "main", "index": 0 }]] },
+    "Resolve Error Rows": { "main": [[{ "node": "Throttle", "type": "main", "index": 0 }]] },
+    "Log Failure": { "main": [[{ "node": "Throttle", "type": "main", "index": 0 }]] },
+    "Throttle": { "main": [[{ "node": "Per-lead Loop", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "id": "30CW6CeOiKWZbWiC", "name": "onboarding" }],
+  "versionId": "1",
+  "meta": { "modernAmenities": true }
+}

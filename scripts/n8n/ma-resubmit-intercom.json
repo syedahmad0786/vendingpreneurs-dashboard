@@ -1,0 +1,164 @@
+{
+  "name": "MA — Resubmit: Intercom",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Resubmit Intercom\n\nPOST /webhook/ma-resubmit-intercom\n\nBody: { leadRecordId, errorRecordId?, context: { fullName, email } }\n\nSearches Intercom for the contact; creates it if missing; updates it if present. Writes 'Intercom Synced At' on the Student Onboarding record and clears 'Intercome Failed?'.",
+        "height": 280,
+        "width": 420,
+        "color": 4
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-resubmit-intercom",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook — Resubmit Intercom",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "webhookId": "ma-resubmit-intercom-01"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "leadRecordId", "value": "={{ $json.body.leadRecordId }}", "type": "string" },
+            { "id": "a2", "name": "errorRecordId", "value": "={{ $json.body.errorRecordId || '' }}", "type": "string" },
+            { "id": "a3", "name": "email", "value": "={{ $json.body.context?.email || '' }}", "type": "string" },
+            { "id": "a4", "name": "fullName", "value": "={{ $json.body.context?.fullName || '' }}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "set",
+      "name": "Parse Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 1,
+        "filters": { "email": "={{ $json.email }}" }
+      },
+      "id": "intercom-search",
+      "name": "Search Intercom Contact",
+      "type": "n8n-nodes-base.intercom",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id ?? '' }}",
+              "operator": { "type": "string", "operation": "isNotEmpty" }
+            }
+          ]
+        }
+      },
+      "id": "if-exists",
+      "name": "Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "resource": "user",
+        "operation": "update",
+        "updateBy": "email",
+        "value": "={{ $('Parse Payload').item.json.email }}",
+        "additionalFields": { "name": "={{ $('Parse Payload').item.json.fullName }}" }
+      },
+      "id": "intercom-update",
+      "name": "Update Contact",
+      "type": "n8n-nodes-base.intercom",
+      "typeVersion": 1,
+      "position": [880, 220]
+    },
+    {
+      "parameters": {
+        "resource": "user",
+        "operation": "create",
+        "identifierType": "email",
+        "idValue": "={{ $('Parse Payload').item.json.email }}",
+        "additionalFields": { "name": "={{ $('Parse Payload').item.json.fullName }}" }
+      },
+      "id": "intercom-create",
+      "name": "Create Contact",
+      "type": "n8n-nodes-base.intercom",
+      "typeVersion": 1,
+      "position": [880, 380]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "columns": "={{ { 'id': $('Parse Payload').item.json.leadRecordId, 'Intercom Synced At': $now.toISO(), 'Intercome Failed?': '' } }}"
+      },
+      "id": "update-student",
+      "name": "Mark Student Synced",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'id': $('Parse Payload').item.json.errorRecordId, 'Status': 'Resolved', 'Resolution Notes': 'Intercom resubmit succeeded at ' + $now.toISO() } }}"
+      },
+      "id": "resolve-error",
+      "name": "Resolve Error Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": { "keepOnlySet": true, "values": { "string": [{ "name": "success", "value": "true" }, { "name": "step", "value": "intercom" }] } },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1540, 300]
+    }
+  ],
+  "connections": {
+    "Webhook — Resubmit Intercom": { "main": [[{ "node": "Parse Payload", "type": "main", "index": 0 }]] },
+    "Parse Payload": { "main": [[{ "node": "Search Intercom Contact", "type": "main", "index": 0 }]] },
+    "Search Intercom Contact": { "main": [[{ "node": "Exists?", "type": "main", "index": 0 }]] },
+    "Exists?": {
+      "main": [
+        [{ "node": "Update Contact", "type": "main", "index": 0 }],
+        [{ "node": "Create Contact", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Contact": { "main": [[{ "node": "Mark Student Synced", "type": "main", "index": 0 }]] },
+    "Create Contact": { "main": [[{ "node": "Mark Student Synced", "type": "main", "index": 0 }]] },
+    "Mark Student Synced": { "main": [[{ "node": "Resolve Error Record", "type": "main", "index": 0 }]] },
+    "Resolve Error Record": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "modernAmenities": true }
+}

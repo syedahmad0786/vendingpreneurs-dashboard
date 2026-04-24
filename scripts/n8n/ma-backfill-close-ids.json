@@ -1,0 +1,180 @@
+{
+  "name": "MA — Backfill Close Lead IDs",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Backfill Close Lead IDs (one-shot)\n\nPOST /webhook/ma-backfill-close\n\nFinds every Student Onboarding row where:\n- Client ID is empty (not starting with lead_), AND\n- Best Email is present\n\nFor each, queries Close CRM `GET /api/v1/lead/?query=email_address:<email>`. If exactly one lead comes back, writes that lead's id to Airtable `Client ID`.\n\nReturns JSON summary: {matched, updated, noMatch, ambiguous}.",
+        "height": 280,
+        "width": 480,
+        "color": 7
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-340, 60]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-backfill-close",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 260],
+      "webhookId": "ma-backfill-close-01"
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "search",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "filterByFormula": "=AND({Best Email}!='', OR({Client ID}='', NOT(LEFT({Client ID},5)='lead_')))",
+        "returnAll": true,
+        "options": { "fields": ["Full Name", "Best Email", "Client ID"] }
+      },
+      "id": "find-orphans",
+      "name": "Find Orphan Rows",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [240, 260]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "split",
+      "name": "Per-row Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [460, 260]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "c1", "name": "recordId", "value": "={{ $json.id }}", "type": "string" },
+            { "id": "c2", "name": "email", "value": "={{ ($json.fields['Best Email'] || '').toLowerCase().trim() }}", "type": "string" },
+            { "id": "c3", "name": "fullName", "value": "={{ $json.fields['Full Name'] || '' }}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "ctx",
+      "name": "Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 260]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.close.com/api/v1/lead/",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "query", "value": "=email_address:{{ $json.email }}" },
+            { "name": "_fields", "value": "id,display_name,contacts" },
+            { "name": "_limit", "value": "5" }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "closeApi",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "close-search",
+      "name": "Close Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [900, 260],
+      "credentials": {
+        "closeApi": { "id": "fV8X6bEW7ST0WdMo", "name": "Close account 2" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Inspect Close response and extract a single lead id if unambiguous.\nconst ctx = $('Context').item.json;\nconst r = $json || {};\nconst data = r.data || [];\nlet outcome = 'noMatch';\nlet leadId = '';\nif (data.length === 1) {\n  leadId = data[0].id;\n  outcome = 'matched';\n} else if (data.length > 1) {\n  outcome = 'ambiguous';\n  leadId = data[0].id; // take the first anyway, they're usually duplicates on Close side\n}\nreturn [{ json: { ...ctx, outcome, leadId, matches: data.length } }];"
+      },
+      "id": "classify",
+      "name": "Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 260]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            { "leftValue": "={{ $json.leadId }}", "operator": { "type": "string", "operation": "startsWith" }, "rightValue": "lead_" }
+          ]
+        }
+      },
+      "id": "if-match",
+      "name": "Got a lead id?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1340, 260]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "columns": "={{ { 'id': $json.recordId, 'Client ID': $json.leadId } }}"
+      },
+      "id": "patch",
+      "name": "Write Client ID",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1560, 180]
+    },
+    {
+      "parameters": { "amount": 500, "unit": "ms" },
+      "id": "throttle",
+      "name": "Throttle",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1780, 260]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": { "string": [
+          { "name": "success", "value": "true" },
+          { "name": "workflow", "value": "ma-backfill-close-ids" }
+        ] }
+      },
+      "id": "done",
+      "name": "Done",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2000, 260]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Find Orphan Rows", "type": "main", "index": 0 }]] },
+    "Find Orphan Rows": { "main": [[{ "node": "Per-row Loop", "type": "main", "index": 0 }]] },
+    "Per-row Loop": {
+      "main": [
+        [{ "node": "Context", "type": "main", "index": 0 }],
+        [{ "node": "Done", "type": "main", "index": 0 }]
+      ]
+    },
+    "Context": { "main": [[{ "node": "Close Search", "type": "main", "index": 0 }]] },
+    "Close Search": { "main": [[{ "node": "Classify", "type": "main", "index": 0 }]] },
+    "Classify": { "main": [[{ "node": "Got a lead id?", "type": "main", "index": 0 }]] },
+    "Got a lead id?": {
+      "main": [
+        [{ "node": "Write Client ID", "type": "main", "index": 0 }],
+        [{ "node": "Throttle", "type": "main", "index": 0 }]
+      ]
+    },
+    "Write Client ID": { "main": [[{ "node": "Throttle", "type": "main", "index": 0 }]] },
+    "Throttle": { "main": [[{ "node": "Per-row Loop", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

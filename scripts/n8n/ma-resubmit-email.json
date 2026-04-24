@@ -1,0 +1,179 @@
+{
+  "name": "MA — Resubmit: Email Validation",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Resubmit Email Validation\n\nPOST /webhook/ma-resubmit-email\n\nBody: { leadRecordId, errorRecordId?, context: { fullName, email } }\n\nRe-runs the email validation step for a lead whose validation previously failed. Uses a regex pre-check then hits Abstract API / Mailgun (replace URL + credential with your validator of choice).",
+        "height": 300,
+        "width": 420,
+        "color": 4
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-resubmit-email",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook — Resubmit Email",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "webhookId": "ma-resubmit-email-01"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "leadRecordId", "value": "={{ $json.body.leadRecordId }}", "type": "string" },
+            { "id": "a2", "name": "errorRecordId", "value": "={{ $json.body.errorRecordId || '' }}", "type": "string" },
+            { "id": "a3", "name": "email", "value": "={{ $json.body.context?.email || '' }}", "type": "string" },
+            { "id": "a4", "name": "fullName", "value": "={{ $json.body.context?.fullName || '' }}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "set",
+      "name": "Parse Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($json.email || '') }}",
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
+        }
+      },
+      "id": "regex-check",
+      "name": "Regex Pre-Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://emailvalidation.abstractapi.com/v1/?api_key=REPLACE_ME&email={{ encodeURIComponent($json.email) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "validate-http",
+      "name": "Deliverability Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [660, 260]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.deliverability || $json.is_valid_format?.value || $json.is_valid_format || 'UNKNOWN' }}",
+              "operator": { "type": "string", "operation": "equals" },
+              "rightValue": "DELIVERABLE"
+            }
+          ]
+        }
+      },
+      "id": "deliverable-if",
+      "name": "Deliverable?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [880, 260]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "columns": "={{ { 'id': $('Parse Payload').item.json.leadRecordId, 'Was Email sent': 'Yes' } }}"
+      },
+      "id": "airtable-update-student",
+      "name": "Mark Email Validated",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'id': $('Parse Payload').item.json.errorRecordId, 'Status': 'Resolved', 'Resolution Notes': 'Email validated via resubmit at ' + $now.toISO() } }}"
+      },
+      "id": "airtable-resolve",
+      "name": "Resolve Error Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1320, 200]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "create",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'Lead Name': $('Parse Payload').item.json.fullName, 'Email': $('Parse Payload').item.json.email, 'Error Type': 'Email Validation', 'Error Message': 'Email still invalid or undeliverable after retry', 'Error Node': 'Deliverability Check', 'Raw Error Data': JSON.stringify($json).slice(0,3000), 'Timestamp': $now.toISO(), 'Status': 'New' } }}"
+      },
+      "id": "airtable-log",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1100, 380]
+    },
+    {
+      "parameters": { "keepOnlySet": true, "values": { "string": [{ "name": "success", "value": "true" }, { "name": "step", "value": "email_validation" }] } },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1540, 200]
+    },
+    {
+      "parameters": { "keepOnlySet": true, "values": { "string": [{ "name": "success", "value": "false" }, { "name": "step", "value": "email_validation" }, { "name": "message", "value": "Email failed validation" }] } },
+      "id": "respond-err",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 380]
+    }
+  ],
+  "connections": {
+    "Webhook — Resubmit Email": { "main": [[{ "node": "Parse Payload", "type": "main", "index": 0 }]] },
+    "Parse Payload": { "main": [[{ "node": "Regex Pre-Check", "type": "main", "index": 0 }]] },
+    "Regex Pre-Check": {
+      "main": [
+        [{ "node": "Deliverability Check", "type": "main", "index": 0 }],
+        [{ "node": "Log Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Deliverability Check": { "main": [[{ "node": "Deliverable?", "type": "main", "index": 0 }]] },
+    "Deliverable?": {
+      "main": [
+        [{ "node": "Mark Email Validated", "type": "main", "index": 0 }],
+        [{ "node": "Log Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark Email Validated": { "main": [[{ "node": "Resolve Error Record", "type": "main", "index": 0 }]] },
+    "Resolve Error Record": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] },
+    "Log Error": { "main": [[{ "node": "Respond Error", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "modernAmenities": true }
+}

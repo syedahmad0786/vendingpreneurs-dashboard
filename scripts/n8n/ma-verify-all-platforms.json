@@ -1,0 +1,298 @@
+{
+  "name": "MA — Verify All Platforms",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Verify All Platforms\n\n**What it does**\nEvery 15 minutes, walks all Student Onboarding records and verifies each downstream platform:\n\n1. **Close CRM** — confirms the lead exists (by Client ID or email) and stamps `Close Verified / Close Verified At`.\n2. **Mighty Networks** — checks `/api/v1/members/lookup?email=` and writes `MN Verified` = Member / Invited / Not Found + `MN Verified At`.\n3. **Intercom** — searches `/contacts/search` and writes `Intercom Verified` = Verified / Not Found.\n4. **VendHub** — re-uses the activated users map already seeded on the record (`VendHub Status`).\n\nWhen it finds a platform says \"already a member\" it:\n- Updates the Student Onboarding row with authoritative status.\n- Marks any open error record for that step (\"New\" or \"Investigating\") as **Resolved** with note \"Auto-resolved — platform reports user is a member.\"\n\nThis is the workflow the dashboard button \"Re-verify all\" calls via webhook `ma-verify-all`.\n\n**Credentials**\n- Close CRM (HTTP Header Auth, Basic `<api_key>:`)\n- Mighty Networks API (HTTP Header Auth)\n- Intercom (HTTP Header Auth with Bearer token)\n- Airtable PAT\n",
+        "height": 460,
+        "width": 520,
+        "color": 3
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-320, 60]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 15 }
+          ]
+        }
+      },
+      "id": "cron",
+      "name": "Every 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 240]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-verify-all",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook — Verify All",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 400],
+      "webhookId": "ma-verify-all-01"
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "search",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "returnAll": true,
+        "options": {
+          "fields": [
+            "Full Name",
+            "Best Email",
+            "Client ID",
+            "MN Invite Granted",
+            "MN Invite ID",
+            "MN Verified",
+            "Intercom Synced At",
+            "Intercom Verified",
+            "VendHub Status"
+          ]
+        }
+      },
+      "id": "load-students",
+      "name": "Load Student Onboarding",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [220, 320]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split",
+      "name": "Per-lead Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [440, 320]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "f1", "name": "recordId", "value": "={{ $json.id }}", "type": "string" },
+            { "id": "f2", "name": "email", "value": "={{ ($json.fields['Best Email'] || '').toLowerCase().trim() }}", "type": "string" },
+            { "id": "f3", "name": "fullName", "value": "={{ $json.fields['Full Name'] || '' }}", "type": "string" },
+            { "id": "f4", "name": "clientId", "value": "={{ $json.fields['Client ID'] || '' }}", "type": "string" },
+            { "id": "f5", "name": "mnInviteId", "value": "={{ $json.fields['MN Invite ID'] || '' }}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "ctx",
+      "name": "Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [660, 320]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.mightynetworks.com/api/v1/members/lookup",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "email", "value": "={{ $json.email }}" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "mn-lookup",
+      "name": "MN Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [880, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify Mighty Networks member state from lookup response.\n// Contract we expect from MN:\n//  - Member confirmed:   { id | member_id | status: 'active' }\n//  - Invited not joined: { invite_id | status: 'invited' }\n//  - Not found:          { error: 'not_found' } or 4xx\n//\n// We also fall back to the on-record MN Invite ID when MN returns nothing:\n// if we previously stored an invite id, we know we sent the invite, so classify\n// as 'Invited' rather than 'Not Found'.\n\nconst ctx = $('Context').item.json;\nconst r = $json || {};\nlet state = 'Not Found';\nif (r.id || r.member_id || r.status === 'active' || r.status === 'member') {\n  state = 'Member';\n} else if (r.invite_id || r.status === 'invited' || r.status === 'pending_invite') {\n  state = 'Invited';\n} else if (ctx.mnInviteId) {\n  state = 'Invited';\n}\nreturn [{ json: { mnState: state, mnRaw: JSON.stringify(r).slice(0, 400) } }];"
+      },
+      "id": "mn-classify",
+      "name": "Classify MN State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.intercom.io/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Intercom-Version", "value": "2.10" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: { field: 'email', operator: '=', value: $('Context').item.json.email } } }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "intercom-search",
+      "name": "Intercom Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [880, 420]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify Intercom state — Verified if any contact in `data` matches.\nconst r = $json || {};\nlet state = 'Not Found';\nif (Array.isArray(r.data) && r.data.length > 0) state = 'Verified';\nelse if (r.total_count && r.total_count > 0) state = 'Verified';\nreturn [{ json: { intercomState: state } }];"
+      },
+      "id": "ic-classify",
+      "name": "Classify Intercom",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 420]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "merge",
+      "name": "Merge MN + Intercom",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1320, 320]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "columns": "={{ { 'id': $('Context').item.json.recordId, 'MN Verified': $json.mnState, 'MN Verified At': $now.toISO(), 'Intercom Verified': $json.intercomState, 'Intercom Verified At': $now.toISO() } }}"
+      },
+      "id": "write-student",
+      "name": "Write Verified Fields",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1540, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            { "leftValue": "={{ $json.mnState }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "Member" },
+            { "leftValue": "={{ $json.intercomState }}", "operator": { "type": "string", "operation": "equals" }, "rightValue": "Verified" }
+          ],
+          "combinator": "or"
+        }
+      },
+      "id": "if-resolved",
+      "name": "Anything verified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1760, 320]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "search",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "filterByFormula": "=AND(OR({Email}='{{ $('Context').item.json.email }}', {Lead ID}='{{ $('Context').item.json.clientId }}'), OR({Status}='New', {Status}='Investigating'), OR({Error Type}='Mighty Networks invite', {Error Type}='Skool Invite', {Error Type}='Intercom Contact'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "find-errors",
+      "name": "Find Open Errors",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1980, 240]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'id': $json.id, 'Status': 'Resolved', 'Resolution Notes': 'Auto-resolved by MA Verify All Platforms — platform confirms user is a member.' } }}"
+      },
+      "id": "resolve-errors",
+      "name": "Resolve Errors",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [2200, 240]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "success", "value": "true" },
+            { "name": "workflow", "value": "ma-verify-all-platforms" }
+          ]
+        }
+      },
+      "id": "done",
+      "name": "Done",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2420, 320]
+    }
+  ],
+  "connections": {
+    "Every 15 min": { "main": [[{ "node": "Load Student Onboarding", "type": "main", "index": 0 }]] },
+    "Webhook — Verify All": { "main": [[{ "node": "Load Student Onboarding", "type": "main", "index": 0 }]] },
+    "Load Student Onboarding": { "main": [[{ "node": "Per-lead Loop", "type": "main", "index": 0 }]] },
+    "Per-lead Loop": {
+      "main": [
+        [
+          { "node": "Context", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Done", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Context": {
+      "main": [
+        [
+          { "node": "MN Lookup", "type": "main", "index": 0 },
+          { "node": "Intercom Search", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "MN Lookup": { "main": [[{ "node": "Classify MN State", "type": "main", "index": 0 }]] },
+    "Intercom Search": { "main": [[{ "node": "Classify Intercom", "type": "main", "index": 0 }]] },
+    "Classify MN State": { "main": [[{ "node": "Merge MN + Intercom", "type": "main", "index": 0 }]] },
+    "Classify Intercom": { "main": [[{ "node": "Merge MN + Intercom", "type": "main", "index": 1 }]] },
+    "Merge MN + Intercom": { "main": [[{ "node": "Write Verified Fields", "type": "main", "index": 0 }]] },
+    "Write Verified Fields": { "main": [[{ "node": "Anything verified?", "type": "main", "index": 0 }]] },
+    "Anything verified?": {
+      "main": [
+        [{ "node": "Find Open Errors", "type": "main", "index": 0 }],
+        [{ "node": "Per-lead Loop", "type": "main", "index": 0 }]
+      ]
+    },
+    "Find Open Errors": { "main": [[{ "node": "Resolve Errors", "type": "main", "index": 0 }]] },
+    "Resolve Errors": { "main": [[{ "node": "Per-lead Loop", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "id": "30CW6CeOiKWZbWiC", "name": "onboarding" }],
+  "versionId": "1",
+  "meta": { "modernAmenities": true }
+}

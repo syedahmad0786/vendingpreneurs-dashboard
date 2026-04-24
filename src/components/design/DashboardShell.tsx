@@ -28,7 +28,6 @@ export function TopBar({
     ["operators", "Operators"],
     ["errors", "Errors & retries"],
     ["cross-platform", "Cross-platform"],
-    ["integrations", "Integrations"],
     ["analytics", "Analytics"],
   ];
   return (
@@ -104,7 +103,7 @@ export function SubBar({
 }: {
   owner: string;
   setOwner: (v: string) => void;
-  owners: { value: string; label: string }[];
+  owners: { value: string; label: string; count?: number }[];
   onRefresh: () => void;
   refreshing: boolean;
 }) {
@@ -116,16 +115,28 @@ export function SubBar({
           <h1>Onboarding pipeline</h1>
         </div>
         <div className="page-actions">
-          <div className="property-switcher">
-            {owners.map((o) => (
-              <button
-                key={o.value}
-                className={owner === o.value ? "active" : ""}
-                onClick={() => setOwner(o.value)}
-              >
-                {o.label}
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Owner</span>
+            <select
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+              style={{
+                background: "var(--ma-surface)",
+                border: "1px solid var(--ma-line)",
+                borderRadius: 6,
+                padding: "5px 10px",
+                fontSize: 12,
+                color: "var(--fg-1)",
+                minWidth: 220,
+                cursor: "pointer",
+              }}
+            >
+              {owners.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}{o.count !== undefined ? `  (${o.count})` : ""}
+                </option>
+              ))}
+            </select>
           </div>
           <button className="btn btn--ghost btn--sm" onClick={onRefresh} disabled={refreshing}>
             <Icon.Refresh size={14} className={refreshing ? "spin-slow" : ""} />

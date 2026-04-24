@@ -16,7 +16,7 @@ import {
 } from "@/components/design/DashboardShell";
 import { PipelineBoard } from "@/components/design/Board";
 import { LeadDrawer } from "@/components/design/LeadDrawer";
-import { OperatorsView, ErrorsView, IntegrationsView, AnalyticsView } from "@/components/design/Views";
+import { OperatorsView, ErrorsView, AnalyticsView } from "@/components/design/Views";
 import { CrossPlatformView } from "@/components/design/CrossPlatformView";
 
 interface PipelineResponse {
@@ -40,7 +40,7 @@ interface PipelineResponse {
 const POLL_INTERVAL_MS = 20_000;
 
 export default function OnboardingPipelinePage() {
-  const [activeNav, setActiveNav] = useState<"pipeline" | "operators" | "errors" | "integrations" | "analytics" | "cross-platform">("pipeline");
+  const [activeNav, setActiveNav] = useState<"pipeline" | "operators" | "errors" | "analytics" | "cross-platform">("pipeline");
   const [dark, setDark] = useState(false);
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState("all");
@@ -110,14 +110,24 @@ export default function OnboardingPipelinePage() {
   useEffect(() => { adaptedRef.current = adapted; }, [adapted]);
 
   const owners = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { value: string; label: string }[] = [{ value: "all", label: "All owners" }];
+    // Build a count-per-rep map so the filter is both exhaustive and ordered
+    // by load. Dedupe on the full name (not initials — different reps can
+    // share initials).
+    const counts = new Map<string, number>();
     for (const l of adapted) {
-      if (!l.realSalesRep || seen.has(l.owner)) continue;
-      seen.add(l.owner);
-      out.push({ value: l.owner, label: l.realSalesRep });
+      const name = (l.realSalesRep || "").trim();
+      if (!name) continue;
+      counts.set(name, (counts.get(name) || 0) + 1);
     }
-    return out.slice(0, 5);
+    const out: { value: string; label: string; count?: number }[] = [
+      { value: "all", label: `All owners (${adapted.length})` },
+    ];
+    // Sort by lead count desc so the most active reps surface first.
+    const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    for (const [name, n] of sorted) {
+      out.push({ value: name, label: name, count: n });
+    }
+    return out;
   }, [adapted]);
 
   const filtered = useMemo(() => {
@@ -133,7 +143,7 @@ export default function OnboardingPipelinePage() {
         if (filter === "waiting-mn" && !l.waitingOnMN) return false;
         if (filter === "waiting-vendhub" && !l.waitingOnVendhub) return false;
         if (filter === "waiting-intercom" && !l.waitingOnIntercom) return false;
-        if (owner !== "all" && l.owner !== owner) return false;
+        if (owner !== "all" && (l.realSalesRep || "").trim() !== owner) return false;
         if (search.trim()) {
           const q = search.toLowerCase();
           if (!(
@@ -554,12 +564,6 @@ export default function OnboardingPipelinePage() {
       {activeNav === "cross-platform" && (
         <main className="main">
           <CrossPlatformView />
-        </main>
-      )}
-
-      {activeNav === "integrations" && (
-        <main className="main">
-          <IntegrationsView leads={adapted} stages={DESIGN_STAGES} byStep={data?.summary.byStep} />
         </main>
       )}
 

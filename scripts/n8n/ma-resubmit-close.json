@@ -1,0 +1,181 @@
+{
+  "name": "MA — Resubmit: Close CRM",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Modern Amenities — Resubmit Close CRM\n\nPOST /webhook/ma-resubmit-close\n\nBody: { leadRecordId, errorRecordId?, context: { fullName, email, clientId, programTier } }\n\n1. Receive webhook\n2. Fetch Student Onboarding record from Airtable\n3. Re-run Close CRM update (set cf_airtableRecordId, refresh trigger)\n4. On success → mark Airtable row + close linked error record\n5. On failure → create new Onboarding Errors row\n\nCredentials expected:\n- 'Airtable Token' (Personal Access Token)\n- 'Close CRM API' (Bearer)",
+        "height": 380,
+        "width": 420,
+        "color": 4
+      },
+      "id": "note-1",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-resubmit-close",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Webhook — Resubmit Close",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "webhookId": "ma-resubmit-close-01"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "leadRecordId", "value": "={{ $json.body.leadRecordId }}", "type": "string" },
+            { "id": "a2", "name": "errorRecordId", "value": "={{ $json.body.errorRecordId || '' }}", "type": "string" },
+            { "id": "a3", "name": "email", "value": "={{ $json.body.context?.email || '' }}", "type": "string" },
+            { "id": "a4", "name": "fullName", "value": "={{ $json.body.context?.fullName || '' }}", "type": "string" },
+            { "id": "a5", "name": "clientId", "value": "={{ $json.body.context?.clientId || '' }}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": false
+      },
+      "id": "set-1",
+      "name": "Parse Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "get",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblMLFYTeoqrtmgXQ" },
+        "id": "={{ $json.leadRecordId }}"
+      },
+      "id": "airtable-get-student",
+      "name": "Get Student Onboarding Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://api.close.com/api/v1/lead/' + ($('Parse Payload').item.json.clientId || '') + '/' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "closeApi",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { 'custom.cf_airtableRecordId': $json.id, 'custom.cf_triggerCwOnboarding': 'Yes' } }}",
+        "options": { "response": { "response": { "fullResponse": false, "neverError": true } } }
+      },
+      "id": "close-put",
+      "name": "Retry Close CRM Update",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.error ? 'error' : 'ok' }}",
+              "operator": { "type": "string", "operation": "equals" },
+              "rightValue": "ok"
+            }
+          ]
+        }
+      },
+      "id": "if-success",
+      "name": "Close API OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'id': $('Parse Payload').item.json.errorRecordId, 'Status': 'Resolved', 'Resolution Notes': 'Resubmitted via Modern Amenities dashboard at ' + $now.toISO() } }}"
+      },
+      "id": "airtable-resolve-error",
+      "name": "Mark Error as Resolved",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1100, 220]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "create",
+        "base": { "__rl": true, "mode": "id", "value": "appgqED05AlPLi0ar" },
+        "table": { "__rl": true, "mode": "id", "value": "tblaQ6fpHGhRs56sH" },
+        "columns": "={{ { 'Lead Name': $('Parse Payload').item.json.fullName, 'Email': $('Parse Payload').item.json.email, 'Lead ID': $('Parse Payload').item.json.clientId, 'Error Type': 'Close CRM Update', 'Error Message': ($json.error && $json.error.message) || 'Resubmit failed', 'Error Node': 'Retry Close CRM Update', 'Raw Error Data': JSON.stringify($json).slice(0, 3000), 'Timestamp': $now.toISO(), 'Status': 'New' } }}"
+      },
+      "id": "airtable-log-error",
+      "name": "Log New Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [1100, 380]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "success", "value": "true" },
+            { "name": "step", "value": "close_crm" },
+            { "name": "leadRecordId", "value": "={{ $('Parse Payload').item.json.leadRecordId }}" }
+          ]
+        }
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 220]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            { "name": "success", "value": "false" },
+            { "name": "step", "value": "close_crm" },
+            { "name": "message", "value": "={{ ($json.error && $json.error.message) || 'Close CRM resubmit failed' }}" }
+          ]
+        }
+      },
+      "id": "respond-err",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 380]
+    }
+  ],
+  "connections": {
+    "Webhook — Resubmit Close": { "main": [[{ "node": "Parse Payload", "type": "main", "index": 0 }]] },
+    "Parse Payload": { "main": [[{ "node": "Get Student Onboarding Record", "type": "main", "index": 0 }]] },
+    "Get Student Onboarding Record": { "main": [[{ "node": "Retry Close CRM Update", "type": "main", "index": 0 }]] },
+    "Retry Close CRM Update": { "main": [[{ "node": "Close API OK?", "type": "main", "index": 0 }]] },
+    "Close API OK?": {
+      "main": [
+        [{ "node": "Mark Error as Resolved", "type": "main", "index": 0 }],
+        [{ "node": "Log New Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark Error as Resolved": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] },
+    "Log New Error": { "main": [[{ "node": "Respond Error", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "modernAmenities": true }
+}
