@@ -1,0 +1,41 @@
+name: Sync Airtable → Supabase
+
+# Runs every 5 min against the dashboard's /api/supabase/sync endpoint.
+# Vercel Hobby tier caps cron jobs at one-per-day; GitHub Actions has no
+# such limit and is free. The endpoint itself requires an x-cron-secret
+# header that matches the CRON_SECRET env var on Vercel.
+#
+# How to set up: after the first push of this file, go to
+#   GitHub repo → Settings → Secrets and variables → Actions
+# and add a repository secret named CRON_SECRET with the same value that
+# lives in the Vercel production env for the project.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"    # every 5 minutes
+  workflow_dispatch:          # lets you fire it manually from the Actions tab
+
+concurrency:
+  group: supabase-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hit the sync endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          # Fail the job if the endpoint returns non-2xx or the response
+          # doesn't look healthy. Keep the body in the log for debugging.
+          response=$(curl -sS -X POST \
+            -H "x-cron-secret: $CRON_SECRET" \
+            -w "\nHTTP %{http_code} · %{time_total}s\n" \
+            -m 240 \
+            "https://v0-vendingpreneurs-dashboard.vercel.app/api/supabase/sync")
+          echo "$response"
+          # Confirm success key is present in JSON body
+          echo "$response" | head -1 | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("success") is True, d; print(f"OK: leads={d.get(\"leadsUpserted\")} presences={d.get(\"presencesUpserted\")}")'

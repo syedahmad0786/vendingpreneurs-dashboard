@@ -1,933 +1,585 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import "./design.css";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import type { LeadPipeline, StepId } from "@/lib/pipeline";
+import { adaptLeads, DESIGN_STAGES, type DesignLead } from "@/lib/design-adapter";
 import {
-  motion,
-  useSpring,
-  useTransform,
-  useMotionValue,
-} from "framer-motion";
-import {
-  Users,
-  UserPlus,
-  Package,
-  DollarSign,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Bell,
-  Clock,
-  Shield,
-  Activity,
-  ChevronRight,
-  Zap,
-} from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+  TopBar,
+  SubBar,
+  KPIStrip,
+  IntegrationsRail,
+  BoardToolbar,
+  ToastStack,
+  type Toast,
+  type SortKey,
+} from "@/components/design/DashboardShell";
+import { PipelineBoard } from "@/components/design/Board";
+import { LeadDrawer } from "@/components/design/LeadDrawer";
+import { OperatorsView, ErrorsView, IntegrationsView, AnalyticsView } from "@/components/design/Views";
+import { CrossPlatformView } from "@/components/design/CrossPlatformView";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-interface StatsData {
-  totalActiveClients: number;
-  currentlyOnboarding: number;
-  machinesPlaced: number;
-  totalMonthlyRevenue: number;
-  onboardingErrorRate: number;
-  trends: {
-    clients: number;
-    onboarding: number;
-    machines: number;
-    revenue: number;
-    errorRate: number;
+interface PipelineResponse {
+  leads: LeadPipeline[];
+  summary: {
+    total: number;
+    completed: number;
+    errored: number;
+    inProgress: number;
+    waitingForCustomer?: {
+      total: number;
+      mightyNetworks: number;
+      intercom: number;
+      vendhub: number;
+    };
+    byStep: Record<StepId, { success: number; error: number; pending: number; waiting?: number }>;
   };
-  clientStatusDistribution: { name: string; value: number; color: string }[];
-  programStagePipeline: { stage: string; count: number; color: string }[];
-  newClientsOverTime: { month: string; clients: number }[];
-  recentOnboarding: {
-    id: string;
-    name: string;
-    tier: string;
-    date: string;
-    status: string;
-  }[];
-  alerts: {
-    type: "error" | "warning" | "info";
-    message: string;
-    count: number;
-  }[];
+  generatedAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// Fallback / default data so the page always renders
-// ---------------------------------------------------------------------------
-const DEFAULT_STATS: StatsData = {
-  totalActiveClients: 247,
-  currentlyOnboarding: 18,
-  machinesPlaced: 1842,
-  totalMonthlyRevenue: 384500,
-  onboardingErrorRate: 3.2,
-  trends: {
-    clients: 12.5,
-    onboarding: -8.3,
-    machines: 5.7,
-    revenue: 15.2,
-    errorRate: -1.4,
-  },
-  clientStatusDistribution: [
-    { name: "Doing Fine", value: 142, color: "#10B981" },
-    { name: "Sinking", value: 23, color: "#EF4444" },
-    { name: "Onboarding", value: 18, color: "#3B82F6" },
-    { name: "Warm Leads Sent", value: 31, color: "#F59E0B" },
-    { name: "Scaling", value: 19, color: "#8B5CF6" },
-    { name: "Paused", value: 14, color: "#6B7280" },
-  ],
-  programStagePipeline: [
-    { stage: "1. Onboarding", count: 45, color: "#3B82F6" },
-    { stage: "2. Email Campaign", count: 38, color: "#6366F1" },
-    { stage: "3. Marketing", count: 32, color: "#8B5CF6" },
-    { stage: "4. Boots on Ground", count: 28, color: "#A855F7" },
-    { stage: "5. Contract Signed", count: 22, color: "#D946EF" },
-    { stage: "6. Machine Purchased", count: 18, color: "#EC4899" },
-    { stage: "7. Machine Placed", count: 15, color: "#F43F5E" },
-    { stage: "8. Scaling", count: 10, color: "#10B981" },
-  ],
-  newClientsOverTime: [
-    { month: "Mar", clients: 12 },
-    { month: "Apr", clients: 18 },
-    { month: "May", clients: 15 },
-    { month: "Jun", clients: 22 },
-    { month: "Jul", clients: 28 },
-    { month: "Aug", clients: 25 },
-    { month: "Sep", clients: 32 },
-    { month: "Oct", clients: 29 },
-    { month: "Nov", clients: 35 },
-    { month: "Dec", clients: 31 },
-    { month: "Jan", clients: 38 },
-    { month: "Feb", clients: 42 },
-  ],
-  recentOnboarding: [
-    { id: "1", name: "Marcus Johnson", tier: "Premium", date: "2025-02-10", status: "Active" },
-    { id: "2", name: "Sarah Chen", tier: "Standard", date: "2025-02-09", status: "Active" },
-    { id: "3", name: "David Williams", tier: "Premium", date: "2025-02-09", status: "Pending" },
-    { id: "4", name: "Emily Rodriguez", tier: "Enterprise", date: "2025-02-08", status: "Active" },
-    { id: "5", name: "James Kim", tier: "Standard", date: "2025-02-08", status: "Error" },
-    { id: "6", name: "Lisa Patel", tier: "Premium", date: "2025-02-07", status: "Active" },
-    { id: "7", name: "Michael Brown", tier: "Standard", date: "2025-02-07", status: "Active" },
-    { id: "8", name: "Anna Martinez", tier: "Enterprise", date: "2025-02-06", status: "Pending" },
-    { id: "9", name: "Robert Taylor", tier: "Premium", date: "2025-02-06", status: "Active" },
-    { id: "10", name: "Jennifer Lee", tier: "Standard", date: "2025-02-05", status: "Active" },
-  ],
-  alerts: [
-    { type: "error", message: "3 clients stuck in onboarding for 7+ days", count: 3 },
-    { type: "error", message: "Payment processing failed for 2 accounts", count: 2 },
-    { type: "warning", message: "Email campaign open rate below 15%", count: 1 },
-    { type: "warning", message: "5 contracts expiring within 30 days", count: 5 },
-    { type: "info", message: "Quarterly review due for 12 clients", count: 12 },
-    { type: "info", message: "New territory expansion pending approval", count: 1 },
-  ],
-};
+const POLL_INTERVAL_MS = 20_000;
 
-// ---------------------------------------------------------------------------
-// Animated Number Component
-// ---------------------------------------------------------------------------
-function AnimatedNumber({
-  value,
-  format = "number",
-}: {
-  value: number;
-  format?: "number" | "currency" | "percent";
-}) {
-  const motionVal = useMotionValue(0);
-  const spring = useSpring(motionVal, { stiffness: 50, damping: 20 });
-  const display = useTransform(spring, (v: number) => {
-    if (format === "currency") return "$" + Math.round(v).toLocaleString();
-    if (format === "percent") return v.toFixed(1) + "%";
-    return Math.round(v).toLocaleString();
-  });
+export default function OnboardingPipelinePage() {
+  const [activeNav, setActiveNav] = useState<"pipeline" | "operators" | "errors" | "integrations" | "analytics" | "cross-platform">("pipeline");
+  const [dark, setDark] = useState(false);
+  const [search, setSearch] = useState("");
+  const [owner, setOwner] = useState("all");
+  const [filter, setFilter] = useState("all");
+  const [sort, setSort] = useState<SortKey>("createdDesc");
+  const [selected, setSelected] = useState<DesignLead | null>(null);
+  const [retryingKeys, setRetryingKeys] = useState<Set<string>>(new Set());
+  const [resolvingKeys, setResolvingKeys] = useState<Set<string>>(new Set());
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [resolvingAll, setResolvingAll] = useState(false);
 
-  useEffect(() => {
-    motionVal.set(value);
-  }, [value, motionVal]);
-
-  return <motion.span>{display}</motion.span>;
-}
-
-// ---------------------------------------------------------------------------
-// Skeleton Shimmer
-// ---------------------------------------------------------------------------
-function Skeleton({ className = "" }: { className?: string }) {
-  return (
-    <div className={`relative overflow-hidden rounded-xl bg-white/5 ${className}`}>
-      <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-    </div>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-      <div className="flex items-start justify-between">
-        <div className="space-y-3 flex-1">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-3 w-20" />
-        </div>
-        <Skeleton className="h-12 w-12 rounded-full" />
-      </div>
-    </div>
-  );
-}
-
-function SkeletonChart() {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-      <Skeleton className="h-5 w-48 mb-6" />
-      <Skeleton className="h-64 w-full" />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Status Badge
-// ---------------------------------------------------------------------------
-function StatusBadge({ status }: { status: string }) {
-  const colorMap: Record<string, string> = {
-    Active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    Pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    Error: "bg-red-500/20 text-red-400 border-red-500/30",
-    Paused: "bg-gray-500/20 text-gray-400 border-gray-500/30",
-  };
-  const colors = colorMap[status] || colorMap["Paused"];
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${colors}`}>
-      {status}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Tier Badge
-// ---------------------------------------------------------------------------
-function TierBadge({ tier }: { tier: string }) {
-  const colorMap: Record<string, string> = {
-    Premium: "bg-purple-500/20 text-purple-400",
-    Standard: "bg-blue-500/20 text-blue-400",
-    Enterprise: "bg-amber-500/20 text-amber-400",
-  };
-  const colors = colorMap[tier] || "bg-gray-500/20 text-gray-400";
-  return (
-    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${colors}`}>
-      {tier}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Custom Recharts Tooltip
-// ---------------------------------------------------------------------------
-function CustomTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ value: number }>;
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-white/10 bg-[#0A0F1E]/95 px-4 py-2 text-sm shadow-xl backdrop-blur-xl">
-      <p className="text-gray-400">{label}</p>
-      <p className="text-lg font-semibold text-white">
-        {payload[0].value} clients
-      </p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Custom Pie Label
-// ---------------------------------------------------------------------------
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function renderCustomPieLabel(props: any) {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
-  if (!cx || !cy || midAngle == null || !innerRadius || !outerRadius) return null;
-  const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  if (percent < 0.05) return null;
-  return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" className="text-xs font-medium">
-      {`${(percent * 100).toFixed(0)}%`}
-    </text>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main Page Component
-// ---------------------------------------------------------------------------
-const STATUS_COLORS: Record<string, string> = {
-  Active: "#10B981",
-  "Doing Fine": "#10B981",
-  Sinking: "#EF4444",
-  Onboarding: "#3B82F6",
-  "Warm Leads Sent": "#F59E0B",
-  Scaling: "#8B5CF6",
-  Paused: "#6B7280",
-  Churned: "#DC2626",
-  "Full Refund": "#F87171",
-};
-
-const STAGE_COLORS: Record<string, string> = {
-  "1. Onboarding": "#3B82F6",
-  "2. Email Campaign": "#6366F1",
-  "3. Marketing": "#8B5CF6",
-  "4. Boots on Ground": "#A855F7",
-  "5. Contract Signed": "#D946EF",
-  "6. Machine Purchased": "#EC4899",
-  "7. Machine Placed": "#F43F5E",
-  "8. Scaling": "#10B981",
-};
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function transformApiToStats(api: any): StatsData {
-  const overview = api.overview ?? {};
-  const onboarding = api.onboarding ?? {};
-  const clients = api.clients ?? {};
-
-  const statusBreakdown: Record<string, number> = overview.clientStatusBreakdown ?? {};
-  const clientStatusDistribution = Object.entries(statusBreakdown).map(
-    ([name, value]) => ({
-      name,
-      value: value as number,
-      color: STATUS_COLORS[name] ?? "#6B7280",
-    })
-  );
-
-  const stagePipeline = Object.entries(
-    clients.statusBreakdown ?? overview.clientStatusBreakdown ?? {}
-  )
-    .filter(([name]) => name.match(/^\d\./))
-    .map(([stage, count]) => ({
-      stage,
-      count: count as number,
-      color: STAGE_COLORS[stage] ?? "#6B7280",
-    }));
-
-  const byMonth: Record<string, number> = clients.byMonth ?? {};
-  const newClientsOverTime = Object.entries(byMonth)
-    .sort()
-    .slice(-12)
-    .map(([month, count]) => ({ month, clients: count }));
-
-  return {
-    totalActiveClients: overview.activeClients ?? overview.totalClients ?? 0,
-    currentlyOnboarding: onboarding.total ?? overview.totalOnboarding ?? 0,
-    machinesPlaced: 0,
-    totalMonthlyRevenue: api.revenue?.totalRefundAmountRaw ?? 0,
-    onboardingErrorRate: onboarding.errorRate ?? 0,
-    trends: DEFAULT_STATS.trends,
-    clientStatusDistribution:
-      clientStatusDistribution.length > 0
-        ? clientStatusDistribution
-        : DEFAULT_STATS.clientStatusDistribution,
-    programStagePipeline:
-      stagePipeline.length > 0
-        ? stagePipeline
-        : DEFAULT_STATS.programStagePipeline,
-    newClientsOverTime:
-      newClientsOverTime.length > 0
-        ? newClientsOverTime
-        : DEFAULT_STATS.newClientsOverTime,
-    recentOnboarding: DEFAULT_STATS.recentOnboarding,
-    alerts: [
-      ...(overview.onboardingErrors > 0
-        ? [{ type: "error" as const, message: `${overview.onboardingErrors} onboarding errors need attention`, count: overview.onboardingErrors }]
-        : []),
-      ...(overview.dataQualityIssues > 0
-        ? [{ type: "warning" as const, message: `${overview.dataQualityIssues} data quality issues detected`, count: overview.dataQualityIssues }]
-        : []),
-      ...(overview.missedLeads > 0
-        ? [{ type: "warning" as const, message: `${overview.missedLeads} missed leads found in CRM audit`, count: overview.missedLeads }]
-        : []),
-      ...(overview.totalRefunds > 0
-        ? [{ type: "info" as const, message: `${overview.totalRefunds} refund requests (${overview.refundAmount ?? "$0"})`, count: overview.totalRefunds }]
-        : []),
-    ],
-  };
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-export default function ExecutiveOverview() {
-  const [stats, setStats] = useState<StatsData | null>(null);
+  const [data, setData] = useState<PipelineResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentDate, setCurrentDate] = useState<string>("");
+  const [refreshing, setRefreshing] = useState(false);
+  const toastIdRef = useRef(1);
+  const adaptedRef = useRef<DesignLead[] | null>(null);
 
   useEffect(() => {
-    setCurrentDate(
-      new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    );
+    if (typeof document !== "undefined") document.body.classList.toggle("dark", dark);
+    return () => { if (typeof document !== "undefined") document.body.classList.remove("dark"); };
+  }, [dark]);
 
-    fetch("/api/stats")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.overview) {
-          setStats(transformApiToStats(data));
-        } else {
-          setStats({ ...DEFAULT_STATS, ...data });
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setStats(DEFAULT_STATS);
-        setLoading(false);
-      });
+  const load = useCallback(async (fresh = false) => {
+    try {
+      if (!data) setLoading(true);
+      if (fresh) setRefreshing(true);
+      const res = await fetch(`/api/onboarding/pipeline${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as PipelineResponse;
+      setData(json);
+    } catch (err) {
+      pushToast("error", err instanceof Error ? err.message : "Could not load pipeline");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const data = stats ?? DEFAULT_STATS;
+  useEffect(() => {
+    load(false);
+    const id = setInterval(() => load(false), POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [load]);
 
-  const pipelineMax = useMemo(
-    () => Math.max(...data.programStagePipeline.map((s) => s.count), 1),
-    [data.programStagePipeline]
+  const pushToast = (type: Toast["type"], text: string) => {
+    const id = toastIdRef.current++;
+    setToasts((ts) => [...ts, { id, type, text }]);
+    setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), 5500);
+  };
+
+  // Fire-and-forget: nudges Supabase to re-sync ONE lead's current Airtable
+  // state. Called right after retry/resolve actions so the Cross-platform
+  // tab + SQL views reflect the change within 1–2 seconds.
+  const triggerSupabaseSync = (airtableId: string) => {
+    try {
+      fetch("/api/supabase/sync-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ airtableId }),
+        keepalive: true,
+      }).catch(() => { /* background — never block UI on this */ });
+    } catch { /* no-op */ }
+  };
+
+  const adapted = useMemo<DesignLead[]>(() => adaptLeads(data?.leads ?? []), [data]);
+  useEffect(() => { adaptedRef.current = adapted; }, [adapted]);
+
+  const owners = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { value: string; label: string }[] = [{ value: "all", label: "All owners" }];
+    for (const l of adapted) {
+      if (!l.realSalesRep || seen.has(l.owner)) continue;
+      seen.add(l.owner);
+      out.push({ value: l.owner, label: l.realSalesRep });
+    }
+    return out.slice(0, 5);
+  }, [adapted]);
+
+  const filtered = useMemo(() => {
+    const statusRank: Record<string, number> = {
+      error: 0, waiting: 1, processing: 2, done: 3,
+    };
+    return adapted
+      .filter((l) => {
+        if (filter === "errors" && l.status !== "error") return false;
+        if (filter === "processing" && l.status !== "processing") return false;
+        if (filter === "done" && l.status !== "done") return false;
+        if (filter === "waiting" && l.status !== "waiting") return false;
+        if (filter === "waiting-mn" && !l.waitingOnMN) return false;
+        if (filter === "waiting-vendhub" && !l.waitingOnVendhub) return false;
+        if (filter === "waiting-intercom" && !l.waitingOnIntercom) return false;
+        if (owner !== "all" && l.owner !== owner) return false;
+        if (search.trim()) {
+          const q = search.toLowerCase();
+          if (!(
+            l.name.toLowerCase().includes(q) ||
+            l.company.toLowerCase().includes(q) ||
+            l.email.toLowerCase().includes(q) ||
+            l.id.toLowerCase().includes(q)
+          )) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        // Dashboard data already arrives newest-first from Airtable, so we
+        // can use the backing LeadPipeline.createdAt by looking up raw data.
+        const aRaw = data?.leads.find((l) => l.id === a.id)?.createdAt || "";
+        const bRaw = data?.leads.find((l) => l.id === b.id)?.createdAt || "";
+        switch (sort) {
+          case "createdAsc":
+            return aRaw.localeCompare(bRaw);
+          case "createdDesc":
+            return bRaw.localeCompare(aRaw);
+          case "stageDesc":
+            return b.currentStage - a.currentStage;
+          case "stageAsc":
+            return a.currentStage - b.currentStage;
+          case "status":
+            return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+          case "owner":
+            return (a.realSalesRep || "zzz").localeCompare(b.realSalesRep || "zzz");
+          default:
+            return 0;
+        }
+      });
+  }, [adapted, filter, owner, search, sort, data]);
+
+  const leadsByStage = useMemo(() => {
+    const m: Record<string, DesignLead[]> = {};
+    DESIGN_STAGES.forEach((s) => (m[s.id] = []));
+    for (const l of filtered) {
+      if (l.status === "waiting") {
+        // Waiting leads show up in EVERY column they're waiting on — so a
+        // lead waiting on both MN and VendHub appears in both columns.
+        // The same lead isn't double-counted in top-level KPIs (those
+        // count unique leads).
+        let placed = false;
+        if (l.waitingOnMN) {
+          m["mighty"].push(l);
+          placed = true;
+        }
+        if (l.waitingOnVendhub) {
+          m["vendhub"].push(l);
+          placed = true;
+        }
+        if (l.waitingOnIntercom) {
+          m["intercom"].push(l);
+          placed = true;
+        }
+        // Fallback: if flags somehow unset, place in currentStage column.
+        if (!placed) {
+          const s = DESIGN_STAGES[l.currentStage];
+          if (s) m[s.id].push(l);
+        }
+      } else {
+        const s = DESIGN_STAGES[l.currentStage];
+        if (s) m[s.id].push(l);
+      }
+    }
+    return m;
+  }, [filtered]);
+
+  const counts = useMemo(() => {
+    const total = adapted.length;
+    const inFlight = adapted.filter((l) => l.status === "processing").length;
+    const stuck = adapted.filter((l) => l.status === "error").length;
+    const live = adapted.filter((l) => l.status === "done").length;
+    const waiting = adapted.filter((l) => l.status === "waiting").length;
+    return { total, inFlight, stuck, live, waiting };
+  }, [adapted]);
+
+  // Per-stage lead lists for the Integration Health drill-through.
+  // Keyed by stepId (close_crm, email_validation, etc).
+  const stageLeadLists = useMemo(() => {
+    const m: Record<string, { success: DesignLead[]; error: DesignLead[]; waiting: DesignLead[]; pending: DesignLead[] }> = {};
+    DESIGN_STAGES.forEach((s) => (m[s.stepId] = { success: [], error: [], waiting: [], pending: [] }));
+    for (const l of adapted) {
+      const tlByStep: Record<string, string> = {};
+      l.timeline.forEach((t) => { tlByStep[t.stepId] = t.status; });
+      for (const stage of DESIGN_STAGES) {
+        const tStatus = tlByStep[stage.stepId];
+        const step = data?.leads.find((d) => d.id === l.id)?.steps.find((s) => s.id === stage.stepId);
+        if (!step) continue;
+        if (step.status === "success") m[stage.stepId].success.push(l);
+        else if (step.status === "error") m[stage.stepId].error.push(l);
+        else if (step.status === "waiting_for_customer") m[stage.stepId].waiting.push(l);
+        else m[stage.stepId].pending.push(l);
+        void tStatus;
+      }
+    }
+    return m;
+  }, [adapted, data]);
+
+  const handleDrill = useCallback((stepId: string, bucket: "success" | "error" | "waiting" | "pending") => {
+    // Map stage + bucket to a board filter.
+    setActiveNav("pipeline");
+    if (bucket === "error") setFilter("errors");
+    else if (bucket === "success") setFilter("done");
+    else if (bucket === "waiting") {
+      if (stepId === "mighty_networks") setFilter("waiting-mn");
+      else if (stepId === "vendhub") setFilter("waiting-vendhub");
+      else if (stepId === "intercom") setFilter("waiting-intercom");
+      else setFilter("waiting");
+    } else if (bucket === "pending") {
+      setFilter("processing");
+    }
+    // Scroll the board into view
+    setTimeout(() => {
+      const el = document.querySelector(".board");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = adapted.find((l) => l.id === selected.id);
+    if (fresh) setSelected(fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adapted]);
+
+  const handleRetry = useCallback(
+    async (lead: DesignLead, stageIdx: number) => {
+      const stage = DESIGN_STAGES[stageIdx];
+      const key = `${lead.id}-${stageIdx}`;
+      setRetryingKeys((prev) => new Set(prev).add(key));
+      try {
+        const res = await fetch("/api/onboarding/resubmit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leadRecordId: lead.id,
+            step: stage.stepId,
+            context: {
+              fullName: lead.name,
+              email: lead.email,
+              clientId: lead._clientId,
+              programTier: lead._programTier,
+            },
+          }),
+        });
+        const body = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (res.ok && (body as { success?: boolean }).success !== false) {
+          pushToast("success", `${lead.company} · ${stage.title} retry triggered`);
+          setTimeout(() => load(true), 1500);
+          // Nudge Supabase to reflect the new state for this lead immediately.
+          triggerSupabaseSync(lead.id);
+        } else {
+          // Surface the real reason: status + message + raw body excerpt
+          const msg = (body as { message?: string }).message || `HTTP ${res.status}`;
+          const raw = (body as { raw?: string }).raw
+            ? ` · ${(body as { raw: string }).raw.slice(0, 120).replace(/\s+/g, " ").trim()}`
+            : "";
+          pushToast("error", `${lead.company} · ${stage.title} retry failed — ${msg}${raw}`);
+        }
+      } catch (err) {
+        pushToast("error", err instanceof Error ? err.message : "Network error");
+      } finally {
+        setRetryingKeys((prev) => {
+          const n = new Set(prev); n.delete(key); return n;
+        });
+      }
+    },
+    [load]
   );
 
-  // Animation variants — reduced delays for snappier feel
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.06 },
-    },
-  };
+  const handleResolveAll = useCallback(async () => {
+    setResolvingAll(true);
+    try {
+      const res = await fetch("/api/onboarding/resolve-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = await res.json();
+      if (res.ok && body.success) {
+        pushToast("success", `Marked ${body.resolved} error${body.resolved === 1 ? "" : "s"} as Resolved`);
+        setTimeout(() => load(true), 1200);
+        // Bulk action — trigger a full resync so Supabase picks up all changes.
+        fetch("/api/supabase/sync", { method: "POST", keepalive: true }).catch(() => {});
+      } else {
+        pushToast("error", body.message || `Could not resolve (HTTP ${res.status})`);
+      }
+    } catch (err) {
+      pushToast("error", err instanceof Error ? err.message : "Network error");
+    } finally {
+      setResolvingAll(false);
+    }
+  }, [load]);
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
-    },
-  };
+  // Resolve every open error row tied to a lead+step combo. Sweeps dupes so
+  // the pipeline doesn't re-derive the same error from a leftover row.
+  const handleResolveForLeadStep = useCallback(
+    async (lead: DesignLead, stepId: string, label?: string) => {
+      const key = `${lead.id}-${stepId}`;
+      setResolvingKeys((prev) => new Set(prev).add(key));
 
-  // KPI card definitions
-  const kpis = [
-    {
-      label: "Total Active Clients",
-      value: data.totalActiveClients,
-      trend: data.trends.clients,
-      icon: Users,
-      color: "#3B82F6",
-      bgColor: "bg-blue-500/15",
-      format: "number" as const,
-      subtitle: "Across all programs",
-    },
-    {
-      label: "Currently Onboarding",
-      value: data.currentlyOnboarding,
-      trend: data.trends.onboarding,
-      icon: UserPlus,
-      color: "#10B981",
-      bgColor: "bg-emerald-500/15",
-      format: "number" as const,
-      subtitle: "New students in pipeline",
-    },
-    {
-      label: "Machines Placed",
-      value: data.machinesPlaced,
-      trend: data.trends.machines,
-      icon: Package,
-      color: "#8B5CF6",
-      bgColor: "bg-purple-500/15",
-      format: "number" as const,
-      subtitle: "Total deployed units",
-    },
-    {
-      label: "Total Monthly Revenue",
-      value: data.totalMonthlyRevenue,
-      trend: data.trends.revenue,
-      icon: DollarSign,
-      color: "#10B981",
-      bgColor: "bg-emerald-500/15",
-      format: "currency" as const,
-      subtitle: "Recurring MRR",
-    },
-    {
-      label: "Onboarding Error Rate",
-      value: data.onboardingErrorRate,
-      trend: data.trends.errorRate,
-      icon: AlertTriangle,
-      color: "#F59E0B",
-      bgColor: "bg-amber-500/15",
-      format: "percent" as const,
-      subtitle: "Last 30 days",
-    },
-  ];
+      // Optimistically drop the resolved error from local view so the UI feels instant.
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          leads: prev.leads.map((l) => {
+            if (l.id !== lead.id) return l;
+            return {
+              ...l,
+              steps: l.steps.map((s) => {
+                if (s.id !== stepId) return s;
+                if (s.status !== "error") return s;
+                return { ...s, status: "pending", errorMessage: undefined, error: undefined, errorRecordId: undefined };
+              }),
+            };
+          }),
+        };
+      });
 
-  // Alert categorization
-  const errorAlerts = data.alerts.filter((a) => a.type === "error");
-  const warningAlerts = data.alerts.filter((a) => a.type === "warning");
-  const infoAlerts = data.alerts.filter((a) => a.type === "info");
+      try {
+        const res = await fetch("/api/onboarding/errors/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leadRecordId: lead.id,
+            email: lead.email,
+            leadId: lead._clientId,
+            step: stepId,
+            errorRecordId: lead.statusError?.errorRecordId,
+          }),
+        });
+        const body = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (res.ok && (body as { success?: boolean }).success) {
+          const n = (body as { resolved?: number }).resolved ?? 0;
+          pushToast(
+            "success",
+            n > 1
+              ? `${label || lead.company} — ${n} duplicate error rows resolved`
+              : `${label || lead.company} — marked Resolved`
+          );
+          // Wait 2.5s for Airtable replica consistency, then re-fetch authoritative state.
+          setTimeout(() => load(true), 2500);
+          // Nudge Supabase to reflect the resolved state for this lead.
+          triggerSupabaseSync(lead.id);
+        } else {
+          const msg = (body as { message?: string }).message || `HTTP ${res.status}`;
+          pushToast("error", `Could not resolve — ${msg}`);
+          // Roll back optimistic change by re-loading.
+          setTimeout(() => load(true), 500);
+        }
+      } catch (err) {
+        pushToast("error", err instanceof Error ? err.message : "Network error");
+        setTimeout(() => load(true), 500);
+      } finally {
+        setResolvingKeys((prev) => {
+          const n = new Set(prev); n.delete(key); return n;
+        });
+      }
+    },
+    [load]
+  );
 
-  const alertIconMap = {
-    error: AlertTriangle,
-    warning: Bell,
-    info: Shield,
-  };
-  const alertColorMap = {
-    error: {
-      border: "border-red-500/30",
-      bg: "bg-red-500/10",
-      text: "text-red-400",
-      badge: "bg-red-500/20 text-red-300",
-      icon: "text-red-400",
+  // Back-compat shim for drawer: old signature (errorRecordId) is translated
+  // into the new sweep by matching the lead+step currently rendered.
+  const handleResolveError = useCallback(
+    async (errorRecordId: string, _leadId?: string) => {
+      if (!data) return;
+      for (const l of data.leads) {
+        const step = l.steps.find((s) => s.errorRecordId === errorRecordId);
+        if (step) {
+          // adapt: find the DesignLead representation
+          const adaptedLead = adaptedRef.current?.find((a) => a.id === l.id);
+          if (adaptedLead) {
+            handleResolveForLeadStep(adaptedLead, step.id, adaptedLead.company);
+            return;
+          }
+        }
+      }
+      // Fallback: single-row resolve
+      setResolvingKeys((prev) => new Set(prev).add(errorRecordId));
+      try {
+        const res = await fetch("/api/onboarding/errors/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ errorRecordId }),
+        });
+        const body = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (res.ok && (body as { success?: boolean }).success) {
+          pushToast("success", "Error marked Resolved");
+          setTimeout(() => load(true), 2500);
+        } else {
+          const msg = (body as { message?: string }).message || `HTTP ${res.status}`;
+          pushToast("error", `Could not resolve — ${msg}`);
+        }
+      } catch (err) {
+        pushToast("error", err instanceof Error ? err.message : "Network error");
+      } finally {
+        setResolvingKeys((prev) => {
+          const n = new Set(prev); n.delete(errorRecordId); return n;
+        });
+      }
     },
-    warning: {
-      border: "border-amber-500/30",
-      bg: "bg-amber-500/10",
-      text: "text-amber-400",
-      badge: "bg-amber-500/20 text-amber-300",
-      icon: "text-amber-400",
-    },
-    info: {
-      border: "border-blue-500/30",
-      bg: "bg-blue-500/10",
-      text: "text-blue-400",
-      badge: "bg-blue-500/20 text-blue-300",
-      icon: "text-blue-400",
-    },
-  };
+    [data, load, handleResolveForLeadStep]
+  );
 
-  // -------------------------------------------------------------------------
-  // Render — no outer wrapper, layout handles bg + container
-  // -------------------------------------------------------------------------
+  const handleResolveOneFromList = useCallback(
+    (l: DesignLead) => {
+      const stepId = DESIGN_STAGES[l.currentStage]?.stepId;
+      if (!stepId) {
+        pushToast("error", `${l.company} — cannot identify step`);
+        return;
+      }
+      handleResolveForLeadStep(l, stepId, l.company);
+    },
+    [handleResolveForLeadStep]
+  );
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600">
-                <Zap className="h-5 w-5 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight text-text-primary">
-                Vendingpreneurs
-              </h1>
-            </div>
-            <p className="text-sm text-text-muted ml-[52px] leading-snug">
-              Executive Overview Dashboard
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-400 backdrop-blur-xl">
-              <Activity className="h-4 w-4 text-emerald-400" />
-              <span className="text-emerald-400 font-medium">Live</span>
-              <span className="ml-1">
-                {currentDate}
-              </span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+    <div className="app">
+      <TopBar
+        activeNav={activeNav}
+        setActiveNav={(v) => setActiveNav(v as typeof activeNav)}
+        dark={dark}
+        setDark={setDark}
+        search={search}
+        setSearch={setSearch}
+      />
 
-      {/* ======= ROW 1: Hero KPI Metric Cards ======= */}
-      {loading ? (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      ) : (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5"
-        >
-          {kpis.map((kpi) => {
-            const Icon = kpi.icon;
-            const trendPositive = kpi.trend >= 0;
-            const isGood =
-              kpi.label === "Onboarding Error Rate"
-                ? !trendPositive
-                : trendPositive;
-            return (
-              <motion.div
-                key={kpi.label}
-                variants={itemVariants}
-                whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl transition-colors hover:border-white/20 hover:bg-white/[0.07]"
-              >
-                <div
-                  className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-20 blur-2xl transition-opacity group-hover:opacity-30"
-                  style={{ backgroundColor: kpi.color }}
-                />
-                <div className="relative flex items-start justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-gray-400 leading-snug">{kpi.label}</p>
-                    <p className="text-3xl font-bold tracking-tight">
-                      <AnimatedNumber value={kpi.value} format={kpi.format} />
-                    </p>
-                    <div className="flex items-center gap-3 flex-wrap pt-1.5">
-                      <span className={`flex items-center gap-0.5 text-xs font-medium ${isGood ? "text-emerald-400" : "text-red-400"}`}>
-                        {trendPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {Math.abs(kpi.trend)}%
-                      </span>
-                      <span className="text-xs text-gray-500">{kpi.subtitle}</span>
+      <SubBar
+        owner={owner}
+        setOwner={setOwner}
+        owners={owners}
+        onRefresh={() => load(true)}
+        refreshing={refreshing}
+      />
+
+      {activeNav === "pipeline" && (
+        <main className="main">
+          <KPIStrip
+            total={counts.total}
+            inFlight={counts.inFlight}
+            stuck={counts.stuck}
+            live={counts.live}
+            waiting={data?.summary.waitingForCustomer}
+          />
+          <IntegrationsRail
+            stages={DESIGN_STAGES}
+            byStep={data?.summary.byStep}
+            leadLists={stageLeadLists}
+            onDrill={handleDrill}
+            updatedAt={data?.generatedAt}
+          />
+          <BoardToolbar filter={filter} setFilter={setFilter} counts={counts} sort={sort} setSort={setSort} />
+          {loading && !data ? (
+            <div className="board">
+              {DESIGN_STAGES.map((s) => (
+                <div key={s.id} className="col">
+                  <div className="col-head">
+                    <div className="col-head-l">
+                      <div className="col-title">
+                        <span className="stage-num">Stage {s.num}</span>
+                        {s.title}
+                      </div>
                     </div>
                   </div>
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${kpi.bgColor}`}>
-                    <Icon className="h-6 w-6" style={{ color: kpi.color }} />
+                  <div className="col-body">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="lead-card" style={{ opacity: 0.4 }}>
+                        <div className="lead-name" style={{ height: 14, background: "var(--ma-line)", borderRadius: 3, width: "60%" }} />
+                        <div className="lead-email" style={{ height: 10, background: "var(--ma-line)", borderRadius: 3, width: "80%" }} />
+                        <div className="lead-progress">
+                          {[0, 1, 2, 3, 4, 5].map((j) => <span key={j} className="step" />)}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
-      )}
-
-      {/* ======= ROW 2: Pie Chart + Funnel Pipeline ======= */}
-      {loading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
-          <SkeletonChart />
-          <SkeletonChart />
-        </div>
-      ) : (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
-        >
-          {/* Client Status Distribution */}
-          <motion.div
-            variants={itemVariants}
-            className="rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-7 backdrop-blur-xl"
-          >
-            <h3 className="mb-5 text-lg font-semibold text-gray-100">
-              Client Status Distribution
-            </h3>
-            <div className="flex flex-col items-center">
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={data.clientStatusDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={110}
-                    paddingAngle={3}
-                    dataKey="value"
-                    strokeWidth={0}
-                    label={renderCustomPieLabel}
-                    labelLine={false}
-                    animationBegin={100}
-                    animationDuration={800}
-                  >
-                    {data.clientStatusDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const item = payload[0];
-                      return (
-                        <div className="rounded-lg border border-white/10 bg-[#0A0F1E]/95 px-4 py-2 text-sm shadow-xl backdrop-blur-xl">
-                          <p className="text-gray-400">{item.name}</p>
-                          <p className="text-lg font-semibold text-white">
-                            {String(item.value)} clients
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
-                {data.clientStatusDistribution.map((entry) => (
-                  <div key={entry.name} className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: entry.color }} />
-                    <span className="text-xs text-gray-400">
-                      {entry.name}{" "}
-                      <span className="font-medium text-gray-300">({entry.value})</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Program Stage Pipeline (Funnel) */}
-          <motion.div
-            variants={itemVariants}
-            className="rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-7 backdrop-blur-xl"
-          >
-            <h3 className="mb-5 text-lg font-semibold text-gray-100">
-              Program Stage Pipeline
-            </h3>
-            <div className="space-y-3">
-              {data.programStagePipeline.map((stage, index) => {
-                const widthPercent = Math.max((stage.count / pipelineMax) * 100, 8);
-                return (
-                  <motion.div
-                    key={stage.stage}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + index * 0.04, duration: 0.4 }}
-                    className="group"
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-sm text-gray-400">{stage.stage}</span>
-                      <span className="text-sm font-semibold text-gray-200">{stage.count}</span>
-                    </div>
-                    <div className="relative h-8 w-full overflow-hidden rounded-lg bg-white/5">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${widthPercent}%` }}
-                        transition={{ delay: 0.15 + index * 0.04, duration: 0.6, ease: "easeOut" }}
-                        className="absolute inset-y-0 left-0 flex items-center rounded-lg px-3"
-                        style={{ background: `linear-gradient(90deg, ${stage.color}CC, ${stage.color}88)` }}
-                      >
-                        <span className="text-xs font-medium text-white/90 whitespace-nowrap">
-                          {stage.count} clients
-                        </span>
-                      </motion.div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex items-center justify-center gap-1 text-gray-500">
-              <span className="text-xs">Intake</span>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <ChevronRight key={i} className="h-3 w-3" />
               ))}
-              <span className="text-xs">Scaling</span>
             </div>
-          </motion.div>
-        </motion.div>
+          ) : (
+            <PipelineBoard
+              stages={DESIGN_STAGES}
+              leadsByStage={leadsByStage}
+              onCardClick={setSelected}
+              onRetry={handleRetry}
+              retryingKeys={retryingKeys}
+            />
+          )}
+        </main>
       )}
 
-      {/* ======= ROW 3: Area Chart + Recent Onboarding ======= */}
-      {loading ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
-          <SkeletonChart />
-          <SkeletonChart />
-        </div>
-      ) : (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
-        >
-          {/* New Clients Over Time */}
-          <motion.div
-            variants={itemVariants}
-            className="rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-7 backdrop-blur-xl"
-          >
-            <h3 className="mb-5 text-lg font-semibold text-gray-100">
-              New Clients Over Time
-            </h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={data.newClientsOverTime} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="clientsGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#6B7280", fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#6B7280", fontSize: 12 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="clients"
-                  stroke="#3B82F6"
-                  strokeWidth={2.5}
-                  fill="url(#clientsGradient)"
-                  animationBegin={200}
-                  animationDuration={800}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </motion.div>
-
-          {/* Recent Onboarding Activity */}
-          <motion.div
-            variants={itemVariants}
-            className="flex flex-col rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl"
-          >
-            <div className="flex items-center justify-between p-6 sm:p-7 pb-3 sm:pb-4">
-              <h3 className="text-lg font-semibold text-gray-100">
-                Recent Onboarding Activity
-              </h3>
-              <div className="flex items-center gap-1.5 text-sm text-gray-400">
-                <Clock className="h-4 w-4" />
-                Live Feed
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 pb-6 max-h-[320px]">
-              <div className="space-y-2">
-                {data.recentOnboarding.map((entry, index) => (
-                  <motion.div
-                    key={entry.id}
-                    initial={{ opacity: 0, x: 16 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + index * 0.03, duration: 0.3 }}
-                    className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] p-4 transition-colors hover:border-white/10 hover:bg-white/[0.06]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-sm font-semibold text-blue-400">
-                        {entry.name.split(" ").map((n) => n[0]).join("")}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-200 min-w-0 truncate">{entry.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <TierBadge tier={entry.tier} />
-                          <span className="text-xs text-gray-500">
-                            {new Date(entry.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <StatusBadge status={entry.status} />
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
+      {activeNav === "operators" && (
+        <main className="main">
+          <OperatorsView leads={adapted} stages={DESIGN_STAGES} onSelect={setSelected} />
+        </main>
       )}
 
-      {/* ======= ROW 4: Active Alerts Panel ======= */}
-      {loading ? (
-        <div>
-          <Skeleton className="h-6 w-40 mb-4" />
-          <div className="flex gap-5 overflow-hidden">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 w-72 shrink-0 rounded-2xl" />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.4 }}
-        >
-          <div className="mb-4 flex items-center gap-2">
-            <Bell className="h-5 w-5 text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-100">Active Alerts</h3>
-            <span className="rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400">
-              {data.alerts.length}
-            </span>
-          </div>
-          <div className="flex gap-5 overflow-x-auto pb-4">
-            {errorAlerts.map((alert, i) => {
-              const colors = alertColorMap.error;
-              const Icon = alertIconMap.error;
-              return (
-                <motion.div
-                  key={`error-${i}`}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.35 + i * 0.05 }}
-                  className={`flex min-w-[300px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 sm:p-6 backdrop-blur-xl`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20">
-                      <Icon className={`h-5 w-5 ${colors.icon}`} />
-                    </div>
-                    <span className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}>{alert.count}</span>
-                  </div>
-                  <p className={`mt-3 text-sm font-medium ${colors.text}`}>{alert.message}</p>
-                  <span className="mt-2 text-xs text-gray-500">Onboarding Error</span>
-                </motion.div>
-              );
-            })}
-            {warningAlerts.map((alert, i) => {
-              const colors = alertColorMap.warning;
-              const Icon = alertIconMap.warning;
-              return (
-                <motion.div
-                  key={`warning-${i}`}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.35 + (errorAlerts.length + i) * 0.05 }}
-                  className={`flex min-w-[300px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 sm:p-6 backdrop-blur-xl`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                      <Icon className={`h-5 w-5 ${colors.icon}`} />
-                    </div>
-                    <span className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}>{alert.count}</span>
-                  </div>
-                  <p className={`mt-3 text-sm font-medium ${colors.text}`}>{alert.message}</p>
-                  <span className="mt-2 text-xs text-gray-500">Campaign Warning</span>
-                </motion.div>
-              );
-            })}
-            {infoAlerts.map((alert, i) => {
-              const colors = alertColorMap.info;
-              const Icon = alertIconMap.info;
-              return (
-                <motion.div
-                  key={`info-${i}`}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.35 + (errorAlerts.length + warningAlerts.length + i) * 0.05 }}
-                  className={`flex min-w-[300px] shrink-0 flex-col justify-between rounded-2xl border ${colors.border} ${colors.bg} p-5 sm:p-6 backdrop-blur-xl`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
-                      <Icon className={`h-5 w-5 ${colors.icon}`} />
-                    </div>
-                    <span className={`rounded-full ${colors.badge} px-2.5 py-1 text-xs font-bold`}>{alert.count}</span>
-                  </div>
-                  <p className={`mt-3 text-sm font-medium ${colors.text}`}>{alert.message}</p>
-                  <span className="mt-2 text-xs text-gray-500">Upcoming Action</span>
-                </motion.div>
-              );
-            })}
-          </div>
-        </motion.div>
+      {activeNav === "errors" && (
+        <main className="main">
+          <ErrorsView
+            leads={adapted}
+            stages={DESIGN_STAGES}
+            onRetry={handleRetry}
+            retryingKeys={retryingKeys}
+            onSelect={setSelected}
+            onResolveAll={handleResolveAll}
+            resolvingAll={resolvingAll}
+            onResolveOne={handleResolveOneFromList}
+            resolvingKeys={resolvingKeys}
+          />
+        </main>
       )}
 
-      {/* Footer */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="border-t border-white/5 pt-6 pb-4 text-center"
-      >
-        <p className="text-xs text-gray-600">
-          Vendingpreneurs Executive Dashboard &middot; Data refreshes every 2
-          minutes &middot; All metrics are live
-        </p>
-      </motion.div>
+      {activeNav === "cross-platform" && (
+        <main className="main">
+          <CrossPlatformView />
+        </main>
+      )}
+
+      {activeNav === "integrations" && (
+        <main className="main">
+          <IntegrationsView leads={adapted} stages={DESIGN_STAGES} byStep={data?.summary.byStep} />
+        </main>
+      )}
+
+      {activeNav === "analytics" && (
+        <main className="main">
+          <AnalyticsView leads={adapted} stages={DESIGN_STAGES} byStep={data?.summary.byStep} />
+        </main>
+      )}
+
+      <LeadDrawer
+        lead={selected}
+        stages={DESIGN_STAGES}
+        onClose={() => setSelected(null)}
+        onRetry={handleRetry}
+        retryingKeys={retryingKeys}
+        onResolveError={(rid) => handleResolveError(rid, selected?.company)}
+        resolvingKeys={resolvingKeys}
+      />
+
+      <ToastStack toasts={toasts} />
     </div>
   );
 }
