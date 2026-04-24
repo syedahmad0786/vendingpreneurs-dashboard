@@ -7,7 +7,7 @@ import { DonutChart, BarChart, Sparkline, AreaTrend } from "./Charts";
 import type { DesignLead, DesignStage } from "@/lib/design-adapter";
 
 /* ========================================================
-   Operators — sortable table of every lead
+   Clients — sortable table of every lead
    ======================================================== */
 export function OperatorsView({
   leads,
@@ -46,11 +46,11 @@ export function OperatorsView({
   });
 
   return (
-    <div className="view view--operators">
+    <div className="view view--clients">
       <div className="view-head">
         <div>
-          <span className="eyebrow">All operators</span>
-          <h2>{filtered.length} of {leads.length} operators</h2>
+          <span className="eyebrow">All clients</span>
+          <h2>{filtered.length} of {leads.length} clients</h2>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input
@@ -83,16 +83,16 @@ export function OperatorsView({
             <option value="stage">Furthest along</option>
             <option value="stageAsc">Earliest stage</option>
             <option value="status">By status</option>
-            <option value="owner">By owner</option>
+            <option value="owner">By REP</option>
             <option value="name">Alphabetical</option>
           </select>
         </div>
       </div>
       <div className="operator-table">
         <div className="op-row op-row--head">
-          <span>Operator</span>
+          <span>Client</span>
           <span>Tier</span>
-          <span>Owner</span>
+          <span>REP</span>
           <span>Stage</span>
           <span>Status</span>
           <span>Started</span>
@@ -124,7 +124,7 @@ export function OperatorsView({
         })}
         {sorted.length === 0 && (
           <div style={{ padding: 40, textAlign: "center", color: "var(--fg-3)" }}>
-            No operators match your filters.
+            No clients match your filters.
           </div>
         )}
       </div>
@@ -437,7 +437,7 @@ export function AnalyticsView({
     .map(([name, n], i) => ({ label: name, value: n, color: palette[i % palette.length] }));
 
   const statusSegs = [
-    { label: "Live operators",       value: leads.filter((l) => l.status === "done").length,       color: "#184010" },
+    { label: "Live clients",       value: leads.filter((l) => l.status === "done").length,       color: "#184010" },
     { label: "In flight",            value: leads.filter((l) => l.status === "processing").length, color: "#e8c020" },
     { label: "Waiting for customer", value: leads.filter((l) => l.status === "waiting").length,    color: "#2563eb" },
     { label: "Stuck on error",       value: leads.filter((l) => l.status === "error").length,      color: "#b02a1a" },
@@ -454,7 +454,7 @@ export function AnalyticsView({
       <div className="view-head">
         <div>
           <span className="eyebrow">Pipeline analytics</span>
-          <h2>How operators are moving through the chain</h2>
+          <h2>How clients are moving through the chain</h2>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn--ghost btn--sm">Last 30 days ▾</button>
@@ -481,7 +481,7 @@ export function AnalyticsView({
           <div style={{ marginTop: 4, fontSize: 10, color: "var(--fg-3)" }}>Past 12 weeks · by signup date</div>
         </div>
         <div className="metric-card">
-          <div className="metric-lbl">Live operators</div>
+          <div className="metric-lbl">Live clients</div>
           <div className="metric-val">{leads.filter((l) => l.status === "done").length}</div>
           <div style={{ marginTop: 12, height: 40 }}>
             <Sparkline values={liveSeries} color="#184010" />
@@ -532,7 +532,7 @@ export function AnalyticsView({
             <h4>Pipeline status</h4>
             <span className="chart-card-sub">Current snapshot</span>
           </div>
-          <DonutChart segments={statusSegs} label={String(leads.length)} sublabel="OPERATORS" />
+          <DonutChart segments={statusSegs} label={String(leads.length)} sublabel="CLIENTS" />
         </div>
       </div>
 
@@ -560,7 +560,7 @@ export function AnalyticsView({
 
       <div className="chart-card">
         <div className="chart-card-head">
-          <h4>Operators by owner · {ownerCounts.length} reps</h4>
+          <h4>Clients by REP · {ownerCounts.length} reps</h4>
           <span className="chart-card-sub">Every sales rep in the pipeline — sorted by lead count</span>
         </div>
         <BarChart data={ownerCounts} />

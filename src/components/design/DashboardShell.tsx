@@ -25,7 +25,7 @@ export function TopBar({
 }) {
   const items: [string, string][] = [
     ["pipeline", "Pipeline"],
-    ["operators", "Operators"],
+    ["operators", "Clients"],
     ["errors", "Errors & retries"],
     ["cross-platform", "Cross-platform"],
     ["analytics", "Analytics"],
@@ -35,14 +35,14 @@ export function TopBar({
       <div className="topbar-inner">
         <div className="topbar-logo">
           <Image
-            src="/brand/modern-amenities-logo.svg"
+            src="/brand/modern-amenities-icon.png"
             alt="Modern Amenities"
-            width={80}
-            height={48}
+            width={110}
+            height={66}
             priority
-            style={{ display: "block", height: 40, width: "auto", flexShrink: 0 }}
+            style={{ display: "block", height: 44, width: "auto", flexShrink: 0 }}
           />
-          <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, marginLeft: 12 }}>
+          <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, marginLeft: 14 }}>
             <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 15, letterSpacing: "0.09em", color: "#fff", textTransform: "uppercase" }}>
               Modern Amenities
             </span>
@@ -70,7 +70,7 @@ export function TopBar({
           <div className="search">
             <Icon.Search size={14} />
             <input
-              placeholder="Search operators, emails, IDs…"
+              placeholder="Search clients, emails, IDs…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -116,7 +116,7 @@ export function SubBar({
         </div>
         <div className="page-actions">
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 12, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Owner</span>
+            <span style={{ fontSize: 12, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>REP</span>
             <select
               value={owner}
               onChange={(e) => setOwner(e.target.value)}
@@ -146,7 +146,7 @@ export function SubBar({
             <Icon.Download size={14} /> Export
           </button>
           <button className="btn btn--primary btn--sm">
-            <Icon.Plus /> Add operator
+            <Icon.Plus /> Add client
           </button>
         </div>
       </div>
@@ -191,7 +191,7 @@ export function KPIStrip({
         <span className="kpi-delta down">Needs attention</span>
       </div>
       <div className="kpi">
-        <span className="kpi-label">Operators live</span>
+        <span className="kpi-label">Clients live</span>
         <span className="kpi-value">{live}</span>
         <span className="kpi-delta up">All steps complete</span>
       </div>
@@ -432,7 +432,7 @@ export function BoardToolbar({
           <option value="stageDesc">Furthest along</option>
           <option value="stageAsc">Earliest stage</option>
           <option value="status">By status</option>
-          <option value="owner">By owner</option>
+          <option value="owner">By REP</option>
         </select>
       </div>
     </div>

@@ -74,7 +74,7 @@ export function LeadDrawer({
                 <div className="callout callout--green" style={{ marginBottom: 20 }}>
                   <Icon.Check size={16} />
                   <div>
-                    <b>Operator is live.</b> Close CRM closed · email validated · Airtable records created · Mighty Networks invited · Intercom synced · VendHub activated.
+                    <b>Client is live.</b> Close CRM closed · email validated · Airtable records created · Mighty Networks invited · Intercom synced · VendHub activated.
                   </div>
                 </div>
               )}
@@ -88,9 +88,9 @@ export function LeadDrawer({
               )}
 
               <div className="drawer-section">
-                <h4>Operator details</h4>
+                <h4>Client details</h4>
                 <dl className="kv">
-                  <dt>Owner</dt>
+                  <dt>REP</dt>
                   <dd>{lead.realSalesRep || "Unassigned"}</dd>
                   <dt>Program tier</dt>
                   <dd>{lead._programTier || "—"}</dd>

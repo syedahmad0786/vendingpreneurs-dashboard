@@ -154,7 +154,7 @@ export function PipelineBoard({
                     borderRadius: 6,
                   }}
                 >
-                  No operators at this stage
+                  No clients at this stage
                 </div>
               ) : (
                 leads.map((lead) => {
