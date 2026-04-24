@@ -29,13 +29,27 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail
-          # Fail the job if the endpoint returns non-2xx or the response
-          # doesn't look healthy. Keep the body in the log for debugging.
-          response=$(curl -sS -X POST \
+          # Hit the sync endpoint, save headers + body separately so we can
+          # check both the HTTP status and the JSON "success" flag.
+          http_code=$(curl -sS -X POST \
             -H "x-cron-secret: $CRON_SECRET" \
-            -w "\nHTTP %{http_code} · %{time_total}s\n" \
+            -o /tmp/resp.json \
+            -w "%{http_code}" \
             -m 240 \
             "https://v0-vendingpreneurs-dashboard.vercel.app/api/supabase/sync")
-          echo "$response"
-          # Confirm success key is present in JSON body
-          echo "$response" | head -1 | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("success") is True, d; print(f"OK: leads={d.get(\"leadsUpserted\")} presences={d.get(\"presencesUpserted\")}")'
+          echo "HTTP status: $http_code"
+          echo "Response body:"
+          cat /tmp/resp.json
+          echo
+          # Fail if the HTTP code isn't 2xx
+          if [[ ! "$http_code" =~ ^2 ]]; then
+            echo "::error::Sync endpoint returned HTTP $http_code"
+            exit 1
+          fi
+          # Fail if the JSON body doesn't include success:true
+          if ! grep -q '"success":true' /tmp/resp.json; then
+            echo "::error::Sync endpoint returned HTTP 200 but success was not true"
+            exit 1
+          fi
+          # Print a one-line summary using jq (pre-installed on GH runners)
+          jq -r '"OK: fetched=\(.fetched) leadsUpserted=\(.leadsUpserted) presencesUpserted=\(.presencesUpserted) durationMs=\(.durationMs)"' /tmp/resp.json
