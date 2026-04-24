@@ -298,9 +298,9 @@ export function IntegrationsRail({
   return (
     <div className="integrations-rail">
       <div className="rail-head">
-        <h3>Integration health</h3>
+        <h3>Pipeline stages · live status</h3>
         <span className="rail-sub">
-          {updatedAt ? `Last check · ${new Date(updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Last check · just now"} · auto-refreshing
+          {updatedAt ? `Last check · ${new Date(updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Last check · just now"} · auto-refreshing · click any number to filter
         </span>
       </div>
       <div className="rail-grid">

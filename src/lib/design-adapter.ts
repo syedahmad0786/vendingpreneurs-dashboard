@@ -113,6 +113,12 @@ export function adaptLead(lead: LeadPipeline): DesignLead {
   const byStepId = new Map<StepId, (typeof lead.steps)[number]>();
   for (const s of lead.steps) byStepId.set(s.id, s);
 
+  // Compute BOTH firstError and firstNonDone so we can prefer the errored
+  // step when deciding which Kanban column to drop the lead into. Previous
+  // bug: a lead with close_crm=pending AND email_validation=error landed in
+  // the Close CRM column because firstNonDone walked the list strictly and
+  // close_crm (pending) came before email (error). Now firstError wins.
+  let firstError = -1;
   let firstNonDone = -1;
   const timeline: DesignTimelineEntry[] = stages.map((stage, i) => {
     const step = byStepId.get(stage.stepId);
@@ -123,6 +129,7 @@ export function adaptLead(lead: LeadPipeline): DesignLead {
     if (step.status === "success") tlStatus = "done";
     else if (step.status === "error") {
       tlStatus = "error";
+      if (firstError === -1) firstError = i;
       if (firstNonDone === -1) firstNonDone = i;
     } else if (step.status === "in_progress" || step.status === "waiting_for_customer") {
       tlStatus = "current";
@@ -157,7 +164,10 @@ export function adaptLead(lead: LeadPipeline): DesignLead {
     };
   });
 
+  // currentStage = the step the lead is "stuck at" for UI placement.
+  // Priority: first errored step > first non-success step > last step.
   if (firstNonDone === -1) firstNonDone = stages.length - 1;
+  firstNonDone = firstError >= 0 ? firstError : firstNonDone;
 
   // Overall status
   let status: DesignStatus;

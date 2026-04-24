@@ -143,6 +143,25 @@ export default function OnboardingPipelinePage() {
         if (filter === "waiting-mn" && !l.waitingOnMN) return false;
         if (filter === "waiting-vendhub" && !l.waitingOnVendhub) return false;
         if (filter === "waiting-intercom" && !l.waitingOnIntercom) return false;
+        // Stage-specific error filter: "errors-<stepId>" — match only leads
+        // whose timeline shows an error at that exact step.
+        if (filter.startsWith("errors-")) {
+          const stepId = filter.slice("errors-".length);
+          const hit = l.timeline.some((t) => t.stepId === stepId && t.status === "error");
+          if (!hit) return false;
+        }
+        // Stage-specific success filter: "success-<stepId>".
+        if (filter.startsWith("success-")) {
+          const stepId = filter.slice("success-".length);
+          const hit = l.timeline.some((t) => t.stepId === stepId && t.status === "done");
+          if (!hit) return false;
+        }
+        // Stage-specific pending filter: "pending-<stepId>" — haven't reached this step yet.
+        if (filter.startsWith("pending-")) {
+          const stepId = filter.slice("pending-".length);
+          const hit = l.timeline.some((t) => t.stepId === stepId && t.status === "pending");
+          if (!hit) return false;
+        }
         if (owner !== "all" && (l.realSalesRep || "").trim() !== owner) return false;
         if (search.trim()) {
           const q = search.toLowerCase();
@@ -246,19 +265,21 @@ export default function OnboardingPipelinePage() {
   }, [adapted, data]);
 
   const handleDrill = useCallback((stepId: string, bucket: "success" | "error" | "waiting" | "pending") => {
-    // Map stage + bucket to a board filter.
+    // Map stage + bucket to a board filter. Crucially: "error" now filters
+    // to leads whose ACTUAL errored step = stepId, not just any lead with
+    // overall status=error. Otherwise clicking "1422 failed on Email" shows
+    // you Close CRM leads because currentStage walked there first.
     setActiveNav("pipeline");
-    if (bucket === "error") setFilter("errors");
-    else if (bucket === "success") setFilter("done");
+    if (bucket === "error") setFilter(`errors-${stepId}`);
+    else if (bucket === "success") setFilter(`success-${stepId}`);
     else if (bucket === "waiting") {
       if (stepId === "mighty_networks") setFilter("waiting-mn");
       else if (stepId === "vendhub") setFilter("waiting-vendhub");
       else if (stepId === "intercom") setFilter("waiting-intercom");
       else setFilter("waiting");
     } else if (bucket === "pending") {
-      setFilter("processing");
+      setFilter(`pending-${stepId}`);
     }
-    // Scroll the board into view
     setTimeout(() => {
       const el = document.querySelector(".board");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
