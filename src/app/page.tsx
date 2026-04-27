@@ -45,6 +45,14 @@ export default function OnboardingPipelinePage() {
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState("all");
   const [filter, setFilter] = useState("all");
+  /**
+   * "Active only" toggle. When true, we hide rows whose Active Client formula
+   * evaluates to inactive (cancelled / expired / archived). New rows added in
+   * the last 3 days bypass the filter as "new_waiting" so the team can see
+   * brand-new work even before the formula classifies them. Default: ON,
+   * because that's the team's daily working set.
+   */
+  const [activeOnly, setActiveOnly] = useState(true);
   const [sort, setSort] = useState<SortKey>("createdDesc");
   const [selected, setSelected] = useState<DesignLead | null>(null);
   const [retryingKeys, setRetryingKeys] = useState<Set<string>>(new Set());
@@ -136,6 +144,10 @@ export default function OnboardingPipelinePage() {
     };
     return adapted
       .filter((l) => {
+        // Active-only filter: hide cancelled/inactive clients. Active +
+        // new_waiting (last 3 days) leads stay visible so the team always
+        // sees brand-new work.
+        if (activeOnly && l.activeStatus === "inactive") return false;
         if (filter === "errors" && l.status !== "error") return false;
         if (filter === "processing" && l.status !== "processing") return false;
         if (filter === "done" && l.status !== "done") return false;
@@ -196,7 +208,7 @@ export default function OnboardingPipelinePage() {
             return 0;
         }
       });
-  }, [adapted, filter, owner, search, sort, data]);
+  }, [adapted, filter, owner, search, sort, data, activeOnly]);
 
   const leadsByStage = useMemo(() => {
     const m: Record<string, DesignLead[]> = {};
@@ -233,21 +245,51 @@ export default function OnboardingPipelinePage() {
     return m;
   }, [filtered]);
 
+  // KPIs + Integration Health respect the Active filter so the team sees
+  // numbers that match what's on the board. When activeOnly is on, we drop
+  // inactive (cancelled / expired) clients from EVERY stat surface.
+  const adaptedForStats = useMemo(
+    () => (activeOnly ? adapted.filter((l) => l.activeStatus !== "inactive") : adapted),
+    [adapted, activeOnly]
+  );
+
+  // Recompute Integration Health byStep counts from the active-filtered set
+  // so the totals on the rail match what the user actually sees on the board.
+  const byStepFiltered = useMemo(() => {
+    const m: Record<string, { success: number; error: number; pending: number; waiting: number }> = {};
+    for (const stage of DESIGN_STAGES) m[stage.stepId] = { success: 0, error: 0, pending: 0, waiting: 0 };
+    for (const l of adaptedForStats) {
+      const raw = data?.leads.find((d) => d.id === l.id);
+      if (!raw) continue;
+      for (const s of raw.steps) {
+        const slot = m[s.id];
+        if (!slot) continue;
+        if (s.status === "success") slot.success++;
+        else if (s.status === "error") slot.error++;
+        else if (s.status === "waiting_for_customer") slot.waiting++;
+        else slot.pending++;
+      }
+    }
+    return m;
+  }, [adaptedForStats, data]);
+
   const counts = useMemo(() => {
-    const total = adapted.length;
-    const inFlight = adapted.filter((l) => l.status === "processing").length;
-    const stuck = adapted.filter((l) => l.status === "error").length;
-    const live = adapted.filter((l) => l.status === "done").length;
-    const waiting = adapted.filter((l) => l.status === "waiting").length;
-    return { total, inFlight, stuck, live, waiting };
-  }, [adapted]);
+    const total = adaptedForStats.length;
+    const inFlight = adaptedForStats.filter((l) => l.status === "processing").length;
+    const stuck = adaptedForStats.filter((l) => l.status === "error").length;
+    const live = adaptedForStats.filter((l) => l.status === "done").length;
+    const waiting = adaptedForStats.filter((l) => l.status === "waiting").length;
+    const newWaiting = adaptedForStats.filter((l) => l.activeStatus === "new_waiting").length;
+    return { total, inFlight, stuck, live, waiting, newWaiting };
+  }, [adaptedForStats]);
 
   // Per-stage lead lists for the Integration Health drill-through.
-  // Keyed by stepId (close_crm, email_validation, etc).
+  // Keyed by stepId (close_crm, email_validation, etc). Also respects the
+  // Active filter so drilled-into populations match what the board shows.
   const stageLeadLists = useMemo(() => {
     const m: Record<string, { success: DesignLead[]; error: DesignLead[]; waiting: DesignLead[]; pending: DesignLead[] }> = {};
     DESIGN_STAGES.forEach((s) => (m[s.stepId] = { success: [], error: [], waiting: [], pending: [] }));
-    for (const l of adapted) {
+    for (const l of adaptedForStats) {
       const tlByStep: Record<string, string> = {};
       l.timeline.forEach((t) => { tlByStep[t.stepId] = t.status; });
       for (const stage of DESIGN_STAGES) {
@@ -262,7 +304,7 @@ export default function OnboardingPipelinePage() {
       }
     }
     return m;
-  }, [adapted, data]);
+  }, [adaptedForStats, data]);
 
   const handleDrill = useCallback((stepId: string, bucket: "success" | "error" | "waiting" | "pending") => {
     // Map stage + bucket to a board filter. Crucially: "error" now filters
@@ -503,6 +545,10 @@ export default function OnboardingPipelinePage() {
         owners={owners}
         onRefresh={() => load(true)}
         refreshing={refreshing}
+        activeOnly={activeOnly}
+        setActiveOnly={setActiveOnly}
+        activeCount={adapted.filter((l) => l.activeStatus !== "inactive").length}
+        totalCount={adapted.length}
       />
 
       {activeNav === "pipeline" && (
@@ -516,7 +562,7 @@ export default function OnboardingPipelinePage() {
           />
           <IntegrationsRail
             stages={DESIGN_STAGES}
-            byStep={data?.summary.byStep}
+            byStep={byStepFiltered}
             leadLists={stageLeadLists}
             onDrill={handleDrill}
             updatedAt={data?.generatedAt}
@@ -562,14 +608,14 @@ export default function OnboardingPipelinePage() {
 
       {activeNav === "operators" && (
         <main className="main">
-          <OperatorsView leads={adapted} stages={DESIGN_STAGES} onSelect={setSelected} />
+          <OperatorsView leads={adaptedForStats} stages={DESIGN_STAGES} onSelect={setSelected} />
         </main>
       )}
 
       {activeNav === "errors" && (
         <main className="main">
           <ErrorsView
-            leads={adapted}
+            leads={adaptedForStats}
             stages={DESIGN_STAGES}
             onRetry={handleRetry}
             retryingKeys={retryingKeys}
@@ -590,7 +636,7 @@ export default function OnboardingPipelinePage() {
 
       {activeNav === "analytics" && (
         <main className="main">
-          <AnalyticsView leads={adapted} stages={DESIGN_STAGES} byStep={data?.summary.byStep} />
+          <AnalyticsView leads={adaptedForStats} stages={DESIGN_STAGES} byStep={byStepFiltered} />
         </main>
       )}
 

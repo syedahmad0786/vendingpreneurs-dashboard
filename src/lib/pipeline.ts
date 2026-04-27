@@ -92,6 +92,17 @@ export interface LeadPipeline {
   /** Airtable record id used for direct Airtable links. */
   airtableRecordId: string;
   /**
+   * Active client lifecycle classification. Sourced from the Clients table's
+   * `⚙️ Active Client?` formula (Yes/No), with a 3-day grace window for
+   * brand-new rows that haven't been classified yet.
+   *
+   *   "active"      — currently a paying client (Active Client = Yes)
+   *   "new_waiting" — added in the last 3 days, formula not yet evaluated
+   *                   to Yes; treated as in-flight onboarding
+   *   "inactive"    — Active Client = No (cancelled / expired / archived)
+   */
+  activeStatus: "active" | "new_waiting" | "inactive";
+  /**
    * Per-platform customer-wait flags. Used by the dashboard KPI:
    * a lead with both waitingOnMN and waitingOnVendhub = counted once
    * in the top "Waiting for customer" KPI but appears in BOTH sub-breakdowns.
@@ -683,6 +694,21 @@ export function derivePipeline(
     vendHubOrganization: (f["VendHub Organization"] as string) || undefined,
     vendHubUserId: (f["VendHub User ID"] as string) || undefined,
     airtableRecordId: student.id,
+    activeStatus: (() => {
+      // The Clients table has `⚙️ Active Client?` (formula → "Yes"/"No").
+      // The Account Status singleSelect (Active/Cancelled/Waiting) overrides
+      // when set. Fresh rows (< 3 days old) get a 3-day grace period as
+      // "new_waiting" so newly imported leads are still visible to the team.
+      const acctStatus = ((f["Account Status"] as string) || "").toLowerCase();
+      if (acctStatus === "cancelled") return "inactive" as const;
+      if (acctStatus === "waiting") return "new_waiting" as const;
+      if (acctStatus === "active") return "active" as const;
+      const activeClient = ((f["⚙️ Active Client?"] as string) || "").toLowerCase();
+      if (activeClient === "yes") return "active" as const;
+      // 3-day grace period for fresh rows
+      if (createdAtIso && hoursSince(createdAtIso) < 72) return "new_waiting" as const;
+      return "inactive" as const;
+    })(),
     waitingOnMN,
     waitingOnIntercom,
     waitingOnVendhub,
@@ -738,6 +764,9 @@ export async function fetchPipeline(options?: {
         "Invited to VendHUB",
         "Has Machine",
         "Machines Placed",
+        // Active client lifecycle (used by the dashboard's Active filter)
+        "⚙️ Active Client?",
+        "Account Status",
       ],
       sort: [{ field: "Date Added", direction: "desc" }],
       ...(max !== undefined ? { maxRecords: max } : {}),

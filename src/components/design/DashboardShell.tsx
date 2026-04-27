@@ -100,12 +100,23 @@ export function SubBar({
   owners,
   onRefresh,
   refreshing,
+  activeOnly,
+  setActiveOnly,
+  activeCount,
+  totalCount,
 }: {
   owner: string;
   setOwner: (v: string) => void;
   owners: { value: string; label: string; count?: number }[];
   onRefresh: () => void;
   refreshing: boolean;
+  /** Active-only toggle. When true, hide cancelled/inactive clients. */
+  activeOnly?: boolean;
+  setActiveOnly?: (v: boolean) => void;
+  /** Active + new_waiting count, for the toggle label. */
+  activeCount?: number;
+  /** Full count, for the toggle label. */
+  totalCount?: number;
 }) {
   return (
     <div className="subbar">
@@ -115,6 +126,39 @@ export function SubBar({
           <h1>Onboarding pipeline</h1>
         </div>
         <div className="page-actions">
+          {setActiveOnly && (
+            <label
+              className="active-toggle"
+              title="Show only active clients (and new leads from the last 3 days)"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "5px 12px",
+                background: activeOnly ? "rgba(16, 178, 90, 0.10)" : "var(--ma-surface)",
+                border: `1px solid ${activeOnly ? "rgba(16, 178, 90, 0.35)" : "var(--ma-line)"}`,
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 12,
+                color: activeOnly ? "#10b25a" : "var(--fg-2)",
+                fontWeight: 600,
+                userSelect: "none",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={activeOnly}
+                onChange={(e) => setActiveOnly(e.target.checked)}
+                style={{ cursor: "pointer" }}
+              />
+              Active only
+              {typeof activeCount === "number" && typeof totalCount === "number" && (
+                <span style={{ opacity: 0.7, fontWeight: 400 }}>
+                  ({activeCount}/{totalCount})
+                </span>
+              )}
+            </label>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 12, color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>REP</span>
             <select

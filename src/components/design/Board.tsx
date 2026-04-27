@@ -30,6 +30,11 @@ function LeadCard({
     lead.status === "waiting" ? "waiting" :
     "processing";
 
+  // Visual marker for brand-new rows (added in last 3 days, Active Client
+  // formula hasn't classified them yet). Outlines the card in amber so the
+  // team can spot fresh work without changing the lead's overall status.
+  const isNewWaiting = lead.activeStatus === "new_waiting";
+
   // Build the "waiting on" label from the per-platform flags
   const waitingOn: string[] = [];
   if (lead.waitingOnMN) waitingOn.push("MN");
@@ -37,16 +42,33 @@ function LeadCard({
   if (lead.waitingOnIntercom) waitingOn.push("Intercom");
 
   return (
-    <div className={`lead-card ${cls}`} onClick={onClick}>
+    <div
+      className={`lead-card ${cls}${isNewWaiting ? " lead-card--new" : ""}`}
+      onClick={onClick}
+      style={isNewWaiting ? { boxShadow: "inset 0 0 0 2px rgba(234, 179, 8, 0.55)" } : undefined}
+    >
       <div className="lead-card-top">
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="lead-name">{lead.company}</div>
           <div className="lead-email">{lead.email}</div>
         </div>
-        {lead.status === "error" && <span className="lead-tag tag-error">Error</span>}
-        {lead.status === "waiting" && <span className="lead-tag tag-waiting">Waiting</span>}
-        {lead.status === "processing" && <span className="lead-tag tag-processing">Live</span>}
-        {lead.status === "done" && <span className="lead-tag tag-success">Done</span>}
+        {isNewWaiting && (
+          <span
+            className="lead-tag"
+            style={{
+              background: "rgba(234, 179, 8, 0.18)",
+              color: "#a16207",
+              border: "1px solid rgba(234, 179, 8, 0.4)",
+            }}
+            title="Added in the last 3 days — not yet classified by the Active Client formula"
+          >
+            New · Waiting
+          </span>
+        )}
+        {!isNewWaiting && lead.status === "error" && <span className="lead-tag tag-error">Error</span>}
+        {!isNewWaiting && lead.status === "waiting" && <span className="lead-tag tag-waiting">Waiting</span>}
+        {!isNewWaiting && lead.status === "processing" && <span className="lead-tag tag-processing">Live</span>}
+        {!isNewWaiting && lead.status === "done" && <span className="lead-tag tag-success">Done</span>}
       </div>
 
       <div className="lead-meta">

@@ -84,6 +84,8 @@ export interface DesignLead {
   _vendHubUserId?: string;
   /** Airtable record id used for direct Airtable links. */
   _airtableRecordId?: string;
+  /** Active client lifecycle from Clients table — used by the Active filter. */
+  activeStatus: "active" | "new_waiting" | "inactive";
 }
 
 function initialsOf(name: string): string {
@@ -226,6 +228,7 @@ export function adaptLead(lead: LeadPipeline): DesignLead {
     _vendHubOrganization: lead.vendHubOrganization,
     _vendHubUserId: lead.vendHubUserId,
     _airtableRecordId: lead.airtableRecordId,
+    activeStatus: lead.activeStatus,
   };
 }
 
