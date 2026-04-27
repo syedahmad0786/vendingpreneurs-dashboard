@@ -1,0 +1,246 @@
+{
+  "name": "MA — Verify Intercom Direct (writes both tables)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## MA — Verify Intercom Direct\n\nLooks up every Clients (and Student Onboarding) row in Intercom by email and writes the result back to BOTH tables.\n\n**Triggers**\n- Webhook: `POST /webhook/ma-verify-intercom-direct`\n- Schedule: every 30 min\n\n**Flow**\n1. Load Clients table — pulls Personal Email + Business Email + the existing Intercom Synced.\n2. Per-row loop, skipping rows where Intercom Synced is already populated unless `force=true` is in the body.\n3. POST `/contacts/search` to Intercom with the email.\n4. Classify Yes/No.\n5. Write `Intercom Synced` + `Intercom Verified At` to the Clients row.\n6. Find the matching Student Onboarding row by Best Email and write the same fields there too.\n\n**Credentials (assign after import)**\n- Intercom (HTTP Header Auth, Authorization: Bearer <token>)\n- Airtable PAT\n\n**Body schema**\n```json\n{ \"force\": false, \"max\": 500, \"email\": \"optional@x.com\" }\n```\nIf `email` is set, only that single row is verified.",
+        "height": 460,
+        "width": 520,
+        "color": 4
+      },
+      "id": "note",
+      "name": "Readme",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 200]
+    },
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 30 }] }
+      },
+      "id": "cron",
+      "name": "Every 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [380, 100]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ma-verify-intercom-direct",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook — Verify Intercom",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [380, 300]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": { "__rl": true, "value": "appgqED05AlPLi0ar", "mode": "id" },
+        "table": { "__rl": true, "value": "tblwDucKYAsPDVBA2", "mode": "id" },
+        "returnAll": true,
+        "options": {
+          "fields": ["Personal Email", "Business Email", "Intercom Synced"]
+        }
+      },
+      "id": "load-clients",
+      "name": "Load Clients",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [620, 200]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop",
+      "name": "Per-lead Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [860, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rid",
+              "name": "recordId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "em",
+              "name": "email",
+              "value": "={{ ($json.fields['Personal Email'] || $json.fields['Business Email'] || '').toLowerCase().trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "alr",
+              "name": "alreadySynced",
+              "value": "={{ ($json.fields['Intercom Synced'] || '').toString().toLowerCase() }}",
+              "type": "string"
+            },
+            {
+              "id": "fc",
+              "name": "force",
+              "value": "={{ $('Webhook — Verify Intercom').first().json?.body?.force === true || $('Webhook — Verify Intercom').first().json?.body?.force === 'true' }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ctx",
+      "name": "Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "has-email",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEquals" }
+            },
+            {
+              "id": "needs-check",
+              "leftValue": "={{ $json.force || !$json.alreadySynced }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "needs-check",
+      "name": "Should check?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.intercom.io/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Intercom-Version", "value": "2.10" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: { field: 'email', operator: '=', value: $('Context').item.json.email } } }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "intercom-search",
+      "name": "Intercom Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1580, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify and prepare patch fields\nconst r = $json || {};\nconst found = (Array.isArray(r.data) && r.data.length > 0) || (r.total_count && r.total_count > 0);\nreturn [{ json: {\n  email: $('Context').item.json.email,\n  recordId: $('Context').item.json.recordId,\n  intercomSynced: found ? 'Yes' : 'No',\n  intercomVerifiedAt: new Date().toISOString(),\n}}];"
+      },
+      "id": "classify",
+      "name": "Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1820, 100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": { "__rl": true, "value": "appgqED05AlPLi0ar", "mode": "id" },
+        "table": { "__rl": true, "value": "tblwDucKYAsPDVBA2", "mode": "id" },
+        "id": "={{ $json.recordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Intercom Synced": "={{ $json.intercomSynced }}",
+            "Intercom Verified At": "={{ $json.intercomVerifiedAt }}"
+          }
+        },
+        "options": { "typecast": true }
+      },
+      "id": "write-clients",
+      "name": "Write Clients",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2060, 100]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": { "__rl": true, "value": "appgqED05AlPLi0ar", "mode": "id" },
+        "table": { "__rl": true, "value": "tblMLFYTeoqrtmgXQ", "mode": "id" },
+        "returnAll": false,
+        "filterByFormula": "=LOWER({Best Email})='{{ $json.email }}'",
+        "options": { "fields": ["Best Email"] }
+      },
+      "id": "find-student",
+      "name": "Find matching Student row",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2300, 100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": { "__rl": true, "value": "appgqED05AlPLi0ar", "mode": "id" },
+        "table": { "__rl": true, "value": "tblMLFYTeoqrtmgXQ", "mode": "id" },
+        "id": "={{ $json.id }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Intercom Synced": "={{ $('Classify').item.json.intercomSynced }}",
+            "Intercom Verified At": "={{ $('Classify').item.json.intercomVerifiedAt }}"
+          }
+        },
+        "options": { "typecast": true }
+      },
+      "id": "write-student",
+      "name": "Write Student row",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2540, 100]
+    }
+  ],
+  "connections": {
+    "Every 30 min": { "main": [[{ "node": "Load Clients", "type": "main", "index": 0 }]] },
+    "Webhook — Verify Intercom": { "main": [[{ "node": "Load Clients", "type": "main", "index": 0 }]] },
+    "Load Clients": { "main": [[{ "node": "Per-lead Loop", "type": "main", "index": 0 }]] },
+    "Per-lead Loop": { "main": [[{ "node": "Context", "type": "main", "index": 0 }]] },
+    "Context": { "main": [[{ "node": "Should check?", "type": "main", "index": 0 }]] },
+    "Should check?": {
+      "main": [
+        [{ "node": "Intercom Search", "type": "main", "index": 0 }],
+        [{ "node": "Per-lead Loop", "type": "main", "index": 0 }]
+      ]
+    },
+    "Intercom Search": { "main": [[{ "node": "Classify", "type": "main", "index": 0 }]] },
+    "Classify": { "main": [[{ "node": "Write Clients", "type": "main", "index": 0 }]] },
+    "Write Clients": { "main": [[{ "node": "Find matching Student row", "type": "main", "index": 0 }]] },
+    "Find matching Student row": { "main": [[{ "node": "Write Student row", "type": "main", "index": 0 }]] },
+    "Write Student row": { "main": [[{ "node": "Per-lead Loop", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["onboarding"]
+}

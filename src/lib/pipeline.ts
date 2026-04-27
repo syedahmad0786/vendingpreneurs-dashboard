@@ -267,24 +267,17 @@ export function derivePipeline(
       : null;
 
     if (id === "close_crm") {
-      // For Clients-table-sourced rows: being in the Clients table means a
-      // deal closed somewhere (Close CRM or Hubspot). We mark this step
-      // success unless an explicit error is logged. For the legacy
-      // Student Onboarding lead_* shape, we still honor the prefix.
+      // Clients table uses "Client ID*" (autoNumber). Student Onboarding
+      // table used "Client ID" (text containing the Close lead_* id).
+      // Per user direction: classify success ONLY when Client ID is present.
+      // Hubspot Deal ID alone does NOT count.
       if (errorFromOpen) {
         return { ...base, ...errorFromOpen, detail: errorFromOpen.error.type };
       }
-      // Clients table uses "Client ID*" (autoNumber). Student Onboarding
-      // table used "Client ID" (text containing the Close lead_* id).
-      // Read either.
       const clientIdAny = (f["Client ID"] ?? f["Client ID*"]) as string | number | undefined;
       const clientIdStr = clientIdAny !== undefined && clientIdAny !== null ? String(clientIdAny) : "";
-      const hubspotDealId = (f["Hubspot Deal ID"] as number | undefined) || 0;
       if (clientIdStr.startsWith("lead_")) {
         return { ...base, status: "success", detail: clientIdStr };
-      }
-      if (Number(hubspotDealId) > 0) {
-        return { ...base, status: "success", detail: `Hubspot #${hubspotDealId}` };
       }
       if (clientIdStr) {
         return { ...base, status: "success", detail: `Client #${clientIdStr}` };
@@ -297,9 +290,9 @@ export function derivePipeline(
         return { ...base, ...errorFromOpen };
       }
       // Downstream success implies email was validated upstream.
-      const mnOk = isTruthy(f["MN Invite Granted"]) || isTruthy(f["MN Invite ID"]) || isTruthy(f["Skool Granted"]);
-      const intercomOk = isTruthy(f["Intercom Synced At"]) || isTruthy(f["Intercom Synced"]);
-      if (resolvedEmail && (mnOk || intercomOk || isTruthy(f["Was Email sent"]) || isTruthy(f["Sent Email File"]))) {
+      const mnOk = isTruthy(f["MN Invite Granted"]) || isTruthy(f["MN Invite ID"]) || isTruthy(f["On Mighty Networks"]);
+      const intercomOk = isTruthy(f["Intercom Synced"]);
+      if (resolvedEmail && (mnOk || intercomOk || isTruthy(f["Sent Email File"]))) {
         return { ...base, status: "success", detail: resolvedEmail };
       }
       if (resolvedEmail) {
@@ -338,17 +331,32 @@ export function derivePipeline(
     }
 
     if (id === "mighty_networks") {
-      const granted = f["MN Invite Granted"] as string | undefined;
-      const mnId = f["MN Invite ID"] as string | undefined;
+      // Mighty Networks ONLY — Skool is a separate platform that's been
+      // deprecated. We do NOT infer MN membership from Skool fields.
+      // Source of truth: "On Mighty Networks" + "MN Join Date" + "MN Member ID"
+      // (populated by the MA — Verify Mighty Networks Direct n8n workflow).
+      const onMN = ((f["On Mighty Networks"] as string) || "").toLowerCase();
+      const mnJoinDate = (f["MN Join Date"] as string) || undefined;
+      const mnMemberId = (f["MN Member ID"] as string) || undefined;
+
+      // Legacy: still honor MN Verified column on Student Onboarding rows.
       const mnVerified = ((f["MN Verified"] as string) || "").trim();
       const mnVerifiedAt = (f["MN Verified At"] as string) || undefined;
-      // Clients-table-only signals: On Skool=Yes + Skool Join Date confirm
-      // the customer joined the community.
-      const onSkool = ((f["On Skool"] as string) || "").toLowerCase() === "yes";
-      const skoolJoinDate = (f["Skool Join Date"] as string) || undefined;
-      const skoolGranted = (f["Skool Granted"] as string) || undefined;
+      const granted = f["MN Invite Granted"] as string | undefined;
+      const mnInviteId = f["MN Invite ID"] as string | undefined;
 
-      // Live-verified as a joined member — always wins
+      // Verified-as-member (real check via MN Admin API) wins
+      if (onMN === "yes" || mnJoinDate || isTruthy(mnMemberId)) {
+        return {
+          ...base,
+          status: "success",
+          detail: mnJoinDate
+            ? `Joined ${mnJoinDate.split("T")[0]}`
+            : mnMemberId
+              ? `MN member #${mnMemberId}`
+              : "On Mighty Networks",
+        };
+      }
       if (mnVerified === "Member" || mnVerified === "Joined" || mnVerified === "Active") {
         return {
           ...base,
@@ -356,21 +364,39 @@ export function derivePipeline(
           detail: mnVerifiedAt ? `Member since ${mnVerifiedAt.split("T")[0]}` : "Verified member",
         };
       }
-      if (onSkool || skoolJoinDate) {
+
+      // Confirmed "not in MN" by the API. If they were invited, waiting on
+      // the customer to accept. Otherwise it's an open MN error / not yet
+      // invited.
+      if (onMN === "no") {
+        if (isTruthy(granted) || isTruthy(mnInviteId)) {
+          return {
+            ...base,
+            status: "waiting_for_customer",
+            waitingOnCustomer: true,
+            detail: mnInviteId ? `Invite sent · waiting to join (#${mnInviteId})` : "Invite sent · waiting to join",
+          };
+        }
         return {
           ...base,
-          status: "success",
-          detail: skoolJoinDate ? `Joined ${skoolJoinDate.split("T")[0]}` : "On Skool",
+          status: "error",
+          errorMessage: "Not in Mighty Networks",
+          error: {
+            message: "Email not found in Mighty Networks community",
+            humanized: false,
+            type: "MN verification miss",
+            node: "MA — Verify Mighty Networks Direct (Vercel)",
+          },
         };
       }
 
-      // Invite sent but lead hasn't accepted — waiting on customer.
-      if (isTruthy(granted) || isTruthy(mnId) || isTruthy(skoolGranted)) {
+      // Invite sent on legacy Student Onboarding row but no live MN check yet.
+      if (isTruthy(granted) || isTruthy(mnInviteId)) {
         return {
           ...base,
           status: "waiting_for_customer",
           waitingOnCustomer: true,
-          detail: mnId ? `Invite sent · waiting to join (#${mnId})` : "Invite sent · waiting to join",
+          detail: mnInviteId ? `Invite sent · waiting to join (#${mnInviteId})` : "Invite sent · waiting to join",
         };
       }
 
@@ -399,16 +425,32 @@ export function derivePipeline(
         };
       }
 
-      // Clients table doesn't track Intercom directly. Infer success from
-      // downstream activity: if the customer is on Skool/Mighty (joined a
-      // community) OR on VendHub (placing machines), the upstream Intercom
-      // sync must have run successfully — Intercom is the gate before both.
-      const onSkool = ((f["On Skool"] as string) || "").toLowerCase() === "yes";
-      const skoolJoinDate = f["Skool Join Date"] as string | undefined;
-      const onVendstack = ((f["On Vendstack"] as string) || "").toLowerCase() === "yes";
-      const hasMachine = ((f["Has Machine"] as string) || "").toLowerCase() === "yes";
-      if (onSkool || skoolJoinDate || onVendstack || hasMachine) {
-        return { ...base, status: "success", detail: "Inferred from downstream activity" };
+      // Real-data check: Intercom Synced is populated by the MA — Verify
+      // Intercom Direct n8n workflow (hits Intercom contacts API per email).
+      // Yes = found in Intercom, No = not in Intercom, blank = not yet checked.
+      const intercomSyncedFlag = ((f["Intercom Synced"] as string) || "").toLowerCase();
+      const intercomVerifiedAt = (f["Intercom Verified At"] as string) || undefined;
+      if (intercomSyncedFlag === "yes" || intercomSyncedFlag === "true" || intercomVerifiedAt) {
+        return {
+          ...base,
+          status: "success",
+          detail: intercomVerifiedAt
+            ? `Verified ${intercomVerifiedAt.split("T")[0]}`
+            : "Verified in Intercom",
+        };
+      }
+      if (intercomSyncedFlag === "no" || intercomSyncedFlag === "false") {
+        return {
+          ...base,
+          status: "error",
+          errorMessage: "Contact not found in Intercom",
+          error: {
+            message: "Contact not found in Intercom",
+            humanized: false,
+            type: "Intercom verification miss",
+            node: "MA — Verify Intercom Direct (n8n)",
+          },
+        };
       }
 
       if (hardFailed && !intercomSynced && openError) {
@@ -648,9 +690,13 @@ export async function fetchPipeline(options?: {
         // Email-validation downstream signals
         "Sent Email File",
         "Welcome Email Sent: ", // trailing space is intentional — that's the actual field name
-        // Mighty Networks / Skool
-        "On Skool",
-        "Skool Join Date",
+        // Mighty Networks (real source of truth, populated by n8n verifier)
+        "On Mighty Networks",
+        "MN Join Date",
+        "MN Member ID",
+        // Intercom (real source of truth, populated by n8n verifier)
+        "Intercom Synced",
+        "Intercom Verified At",
         // VendHub
         "On Vendstack",
         "Invited to VendHUB",
