@@ -3,6 +3,13 @@
 import { Icon } from "./DashboardIcons";
 import { PlatformLogos } from "./PlatformLogos";
 import type { DesignLead, DesignStage } from "@/lib/design-adapter";
+import {
+  closeLink,
+  airtableLink,
+  mightyLink,
+  intercomLink,
+  vendhubLink,
+} from "@/lib/platform-links";
 
 function LeadCard({
   lead,
@@ -52,6 +59,47 @@ function LeadCard({
         {lead.timeline.map((t, i) => (
           <span key={i} className={`step ${t.status}`} />
         ))}
+      </div>
+
+      {/* Tiny platform-icon row — each icon links directly to that record on
+          the platform's UI. Only shown when we know the external id. */}
+      <div
+        className="lead-platforms"
+        style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {(() => {
+          const links = [
+            { L: PlatformLogos.close,    link: closeLink(lead._closeLeadId || lead._clientId) },
+            { L: PlatformLogos.airtable, link: airtableLink(lead._airtableRecordId || lead.id) },
+            { L: PlatformLogos.mighty,   link: mightyLink(lead._mnMemberId) },
+            { L: PlatformLogos.intercom, link: intercomLink(lead._intercomContactId) },
+            { L: PlatformLogos.vendhub,  link: vendhubLink(lead._vendHubUserId, lead._vendHubOrganization) },
+          ].filter((x) => x.link);
+          return links.map(({ L, link }) =>
+            link ? (
+              <a
+                key={link.platform}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open in ${link.platform} · ${link.externalId || ""}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 18,
+                  height: 18,
+                  opacity: 0.8,
+                  borderRadius: 3,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <L size={14} />
+              </a>
+            ) : null
+          );
+        })()}
       </div>
 
       {lead.status === "error" && lead.statusError && (

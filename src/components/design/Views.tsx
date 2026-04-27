@@ -5,6 +5,31 @@ import { Icon } from "./DashboardIcons";
 import { PlatformLogos } from "./PlatformLogos";
 import { DonutChart, BarChart, Sparkline, AreaTrend } from "./Charts";
 import type { DesignLead, DesignStage } from "@/lib/design-adapter";
+import {
+  closeLink,
+  airtableLink,
+  mightyLink,
+  intercomLink,
+  vendhubLink,
+} from "@/lib/platform-links";
+
+// Map a stage's platform to the deep link for that lead+stage.
+function deepLinkForStage(lead: DesignLead, stage: DesignStage) {
+  switch (stage.platform) {
+    case "close":
+      return closeLink(lead._closeLeadId || lead._clientId);
+    case "airtable":
+      return airtableLink(lead._airtableRecordId || lead.id);
+    case "mighty":
+      return mightyLink(lead._mnMemberId);
+    case "intercom":
+      return intercomLink(lead._intercomContactId);
+    case "vendhub":
+      return vendhubLink(lead._vendHubUserId, lead._vendHubOrganization);
+    default:
+      return null;
+  }
+}
 
 /* ========================================================
    Clients — sortable table of every lead
@@ -253,6 +278,21 @@ export function ErrorsView({
               <div className="error-row-r">
                 <span style={{ fontSize: 12, color: "var(--fg-3)", marginRight: 8 }}>{l.retries} retries</span>
                 <button className="btn btn--ghost btn--xs" onClick={() => onSelect(l)}>Details</button>
+                {(() => {
+                  const link = deepLinkForStage(l, stage);
+                  if (!link) return null;
+                  return (
+                    <a
+                      className="btn btn--ghost btn--xs"
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`${link.label} · ${link.externalId || ""}`}
+                    >
+                      <Icon.External size={11} /> Open in {stage.platform}
+                    </a>
+                  );
+                })()}
                 <button
                   className="btn btn--ghost btn--xs"
                   disabled={!canResolve || isResolving}

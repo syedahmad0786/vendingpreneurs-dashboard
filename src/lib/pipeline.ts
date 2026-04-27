@@ -81,8 +81,16 @@ export interface LeadPipeline {
   currentStepIndex: number;
   /** Platform identifiers for cross-platform deep links. */
   mnInviteId?: string;
+  /** Real Mighty Networks member id (from /api/verify/mighty-networks). */
+  mnMemberId?: string;
+  /** Real Intercom contact id (from /api/verify/intercom). */
+  intercomContactId?: string;
+  /** Close CRM lead id, e.g. "lead_abc...". */
+  closeLeadId?: string;
   vendHubOrganization?: string;
   vendHubUserId?: string;
+  /** Airtable record id used for direct Airtable links. */
+  airtableRecordId: string;
   /**
    * Per-platform customer-wait flags. Used by the dashboard KPI:
    * a lead with both waitingOnMN and waitingOnVendhub = counted once
@@ -346,7 +354,7 @@ export function derivePipeline(
       const mnInviteId = f["MN Invite ID"] as string | undefined;
 
       // Verified-as-member (real check via MN Admin API) wins
-      if (onMN === "yes" || mnJoinDate || isTruthy(mnMemberId)) {
+      if (onMN === "verified" || onMN === "yes" || mnJoinDate || isTruthy(mnMemberId)) {
         return {
           ...base,
           status: "success",
@@ -368,8 +376,8 @@ export function derivePipeline(
       // Confirmed "not in MN" by the API. If they were invited, waiting on
       // the customer to accept. Otherwise it's an open MN error / not yet
       // invited.
-      if (onMN === "no") {
-        if (isTruthy(granted) || isTruthy(mnInviteId)) {
+      if (onMN === "not imported" || onMN === "no" || onMN === "waiting") {
+        if (onMN === "waiting" || isTruthy(granted) || isTruthy(mnInviteId)) {
           return {
             ...base,
             status: "waiting_for_customer",
@@ -425,30 +433,49 @@ export function derivePipeline(
         };
       }
 
-      // Real-data check: Intercom Synced is populated by the MA — Verify
-      // Intercom Direct n8n workflow (hits Intercom contacts API per email).
-      // Yes = found in Intercom, No = not in Intercom, blank = not yet checked.
+      // Real-data check: Intercom Synced is populated by /api/verify/intercom
+      // which hits Intercom contacts API per email. Values:
+      //   "Verified"      = found in Intercom (we also captured Intercom Contact ID)
+      //   "Not imported"  = email not found in Intercom (real onboarding gap)
+      //   "Waiting"       = legacy: synced but not verified yet
+      //   blank           = not yet checked
       const intercomSyncedFlag = ((f["Intercom Synced"] as string) || "").toLowerCase();
       const intercomVerifiedAt = (f["Intercom Verified At"] as string) || undefined;
-      if (intercomSyncedFlag === "yes" || intercomSyncedFlag === "true" || intercomVerifiedAt) {
+      const intercomContactId = (f["Intercom Contact ID"] as string) || undefined;
+      if (
+        intercomSyncedFlag === "verified" ||
+        intercomSyncedFlag === "yes" ||
+        intercomSyncedFlag === "true" ||
+        intercomContactId
+      ) {
         return {
           ...base,
           status: "success",
-          detail: intercomVerifiedAt
-            ? `Verified ${intercomVerifiedAt.split("T")[0]}`
-            : "Verified in Intercom",
+          detail: intercomContactId
+            ? `Verified · Intercom #${intercomContactId.slice(-6)}`
+            : intercomVerifiedAt
+              ? `Verified ${intercomVerifiedAt.split("T")[0]}`
+              : "Verified in Intercom",
         };
       }
-      if (intercomSyncedFlag === "no" || intercomSyncedFlag === "false") {
+      if (intercomSyncedFlag === "waiting") {
+        return {
+          ...base,
+          status: "waiting_for_customer",
+          waitingOnCustomer: true,
+          detail: "Invited · waiting to be imported",
+        };
+      }
+      if (intercomSyncedFlag === "not imported" || intercomSyncedFlag === "no" || intercomSyncedFlag === "false") {
         return {
           ...base,
           status: "error",
-          errorMessage: "Contact not found in Intercom",
+          errorMessage: "Contact not in Intercom",
           error: {
-            message: "Contact not found in Intercom",
+            message: "Contact not found in Intercom — onboarding gap",
             humanized: false,
             type: "Intercom verification miss",
-            node: "MA — Verify Intercom Direct (n8n)",
+            node: "MA — Verify Intercom (Vercel)",
           },
         };
       }
@@ -648,8 +675,14 @@ export function derivePipeline(
     overallStatus,
     currentStepIndex,
     mnInviteId: (f["MN Invite ID"] as string) || undefined,
+    mnMemberId: (f["MN Member ID"] as string) || undefined,
+    intercomContactId: (f["Intercom Contact ID"] as string) || undefined,
+    closeLeadId:
+      ((f["Close Lead ID"] as string) || "").trim() ||
+      (clientIdStr && clientIdStr.startsWith("lead_") ? clientIdStr : undefined),
     vendHubOrganization: (f["VendHub Organization"] as string) || undefined,
     vendHubUserId: (f["VendHub User ID"] as string) || undefined,
+    airtableRecordId: student.id,
     waitingOnMN,
     waitingOnIntercom,
     waitingOnVendhub,
@@ -694,9 +727,12 @@ export async function fetchPipeline(options?: {
         "On Mighty Networks",
         "MN Join Date",
         "MN Member ID",
-        // Intercom (real source of truth, populated by n8n verifier)
+        // Intercom (real source of truth, populated by /api/verify/intercom)
         "Intercom Synced",
         "Intercom Verified At",
+        "Intercom Contact ID",
+        // Close Lead ID (legacy text field for deep-linking back to Close)
+        "Close Lead ID",
         // VendHub
         "On Vendstack",
         "Invited to VendHUB",

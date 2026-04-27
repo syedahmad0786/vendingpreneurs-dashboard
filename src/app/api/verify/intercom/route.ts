@@ -1,32 +1,30 @@
 /**
- * POST /api/verify/mighty-networks
+ * POST /api/verify/intercom
  *
- * Verify each Clients row against the live Mighty Networks Admin API.
+ * Verify each Clients row against the live Intercom Contacts API.
  * For every email, calls
- *   GET https://api.mn.co/admin/v1/networks/{MN_NETWORK_ID}/members/by_email?email=...
- * and writes back to BOTH Clients (tblwDucKYAsPDVBA2) and Student
+ *   POST https://api.intercom.io/contacts/search
+ * with { query: { field: email, operator: =, value: <email> } } and
+ * writes back to BOTH Clients (tblwDucKYAsPDVBA2) and Student
  * Onboarding (tblMLFYTeoqrtmgXQ):
- *   On Mighty Networks: "Yes" | "No"
- *   MN Join Date:       <member.created_at>
- *   MN Member ID:       <member.id>
+ *   Intercom Synced:        "Verified" | "Not imported"
+ *   Intercom Contact ID:    <contact.id>
+ *   Intercom Verified At:   <ISO now>
  *
  * Body: { force?: boolean, max?: number, email?: string }
- *   - email: verify only this single email (ignores other args)
- *   - force: re-verify even rows that already have On Mighty Networks set
- *   - max: cap how many rows to process this run
- *
- * Auth: same as supabase sync — x-cron-secret or x-vercel-cron header.
+ *   - email: verify only this single email
+ *   - force: re-verify even rows that already have Intercom Synced set
+ *   - max:   cap how many rows to process this run
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTable, invalidateTableCache } from "@/lib/airtable";
 
-export const maxDuration = 300; // up to 5 min
+export const maxDuration = 300;
 
 const AIRTABLE_PAT = process.env.AIRTABLE_PAT || "";
 const AIRTABLE_BASE = process.env.AIRTABLE_BASE_ID || "";
-const MN_API_KEY = process.env.MN_API_KEY || "";
-const MN_NETWORK_ID = process.env.MN_NETWORK_ID || "";
+const IC_TOKEN = process.env.INTERCOM_ACCESS_TOKEN || "";
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 const CLIENTS_TABLE = "tblwDucKYAsPDVBA2";
@@ -39,32 +37,45 @@ function authOk(req: NextRequest): boolean {
   return false;
 }
 
-interface MnMember {
-  id: number;
-  created_at: string;
+interface IcContact {
+  type: "contact";
+  id: string;
   email: string;
-  first_name?: string;
-  last_name?: string;
+  external_id?: string;
+  name?: string;
+}
+interface IcSearchResp {
+  type: "list";
+  data?: IcContact[];
+  total_count?: number;
 }
 
-async function lookupMnMember(email: string, attempt = 0): Promise<MnMember | null> {
-  const url = `https://api.mn.co/admin/v1/networks/${MN_NETWORK_ID}/members/by_email?email=${encodeURIComponent(email)}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${MN_API_KEY}`, Accept: "application/json" },
+async function searchIntercom(email: string, attempt = 0): Promise<IcContact | null> {
+  const res = await fetch("https://api.intercom.io/contacts/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${IC_TOKEN}`,
+      "Intercom-Version": "2.10",
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      query: { field: "email", operator: "=", value: email },
+    }),
     cache: "no-store",
   });
-  if (res.status === 404) return null;
-  // MN's documented rate limit is 100 req/min for standard plans.
-  // Back off and retry on 429.
+  // Intercom rate limit: 1000 req/min by default. Back off on 429.
   if (res.status === 429 && attempt < 4) {
-    const waitMs = 5000 * Math.pow(2, attempt); // 5s, 10s, 20s, 40s
+    const waitMs = 5000 * Math.pow(2, attempt);
     await new Promise((r) => setTimeout(r, waitMs));
-    return lookupMnMember(email, attempt + 1);
+    return searchIntercom(email, attempt + 1);
   }
   if (!res.ok) {
-    throw new Error(`MN API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    throw new Error(`Intercom ${res.status}: ${(await res.text()).slice(0, 200)}`);
   }
-  return (await res.json()) as MnMember;
+  const json = (await res.json()) as IcSearchResp;
+  if (Array.isArray(json.data) && json.data.length > 0) return json.data[0];
+  return null;
 }
 
 async function patchAirtableBatch(
@@ -101,9 +112,9 @@ function pickEmail(f: Record<string, unknown>): string {
 }
 
 export async function POST(req: NextRequest) {
-  if (!MN_API_KEY || !MN_NETWORK_ID) {
+  if (!IC_TOKEN) {
     return NextResponse.json(
-      { error: "MN_API_KEY / MN_NETWORK_ID not configured" },
+      { error: "INTERCOM_ACCESS_TOKEN not configured" },
       { status: 503 }
     );
   }
@@ -123,32 +134,29 @@ export async function POST(req: NextRequest) {
   const max = body.max ?? Infinity;
   const singleEmail = body.email?.trim().toLowerCase();
 
-  // 1. Pull both tables. We need email + existing On Mighty Networks
-  //    so we can skip already-verified rows unless force=true.
   const [clientsRows, studentRows] = await Promise.all([
     fetchTable("clients", {
       fields: [
         "Personal Email",
         "Business Email",
-        "On Mighty Networks",
-        "MN Join Date",
-        "MN Member ID",
+        "Intercom Synced",
+        "Intercom Contact ID",
+        "Intercom Verified At",
       ],
       cacheTtl: 0,
     }),
     fetchTable("studentOnboarding", {
-      fields: ["Best Email", "On Mighty Networks", "MN Join Date", "MN Member ID"],
+      fields: ["Best Email", "Intercom Synced", "Intercom Contact ID"],
       cacheTtl: 0,
-    }).catch(() => []), // table may have different field names — tolerate
+    }).catch(() => []),
   ]);
 
-  // Build email → [{ table, recordId }]
   const byEmail = new Map<string, { table: "clients" | "students"; recordId: string; needsCheck: boolean }[]>();
   for (const r of clientsRows) {
     const email = pickEmail(r.fields as Record<string, unknown>);
     if (!email) continue;
-    const onMN = ((r.fields["On Mighty Networks"] as string) || "").toLowerCase();
-    const needsCheck = force || (!onMN);
+    const synced = ((r.fields["Intercom Synced"] as string) || "").toLowerCase();
+    const needsCheck = force || !synced;
     const arr = byEmail.get(email) || [];
     arr.push({ table: "clients", recordId: r.id, needsCheck });
     byEmail.set(email, arr);
@@ -156,14 +164,13 @@ export async function POST(req: NextRequest) {
   for (const r of studentRows) {
     const email = ((r.fields["Best Email"] as string) || "").trim().toLowerCase();
     if (!email) continue;
-    const onMN = ((r.fields["On Mighty Networks"] as string) || "").toLowerCase();
-    const needsCheck = force || (!onMN);
+    const synced = ((r.fields["Intercom Synced"] as string) || "").toLowerCase();
+    const needsCheck = force || !synced;
     const arr = byEmail.get(email) || [];
     arr.push({ table: "students", recordId: r.id, needsCheck });
     byEmail.set(email, arr);
   }
 
-  // 2. Pick the email list to check
   let emailsToCheck: string[];
   if (singleEmail) {
     emailsToCheck = byEmail.has(singleEmail) ? [singleEmail] : [];
@@ -174,7 +181,6 @@ export async function POST(req: NextRequest) {
       .slice(0, max);
   }
 
-  // 3. Check each email against MN, build per-table patch lists
   const clientsPatches: { id: string; fields: Record<string, unknown> }[] = [];
   const studentPatches: { id: string; fields: Record<string, unknown> }[] = [];
   let foundCount = 0;
@@ -183,43 +189,48 @@ export async function POST(req: NextRequest) {
   const errorSamples: string[] = [];
 
   for (const email of emailsToCheck) {
-    let member: MnMember | null = null;
+    let contact: IcContact | null = null;
     try {
-      member = await lookupMnMember(email);
+      contact = await searchIntercom(email);
     } catch (err) {
       errorCount++;
-      if (errorSamples.length < 5) errorSamples.push(`${email}: ${err instanceof Error ? err.message : "unknown"}`);
+      if (errorSamples.length < 5) {
+        errorSamples.push(`${email}: ${err instanceof Error ? err.message : "unknown"}`);
+      }
       continue;
     }
     const refs = byEmail.get(email) || [];
-    // Use onboarding-friendly status text. "Verified" when in MN, "Waiting"
-    // when invited but not joined (we'd need to detect invite — for now we
-    // don't have invite state on Clients, so default not-found = "Not imported").
-    const fields = member
+    const fields = contact
       ? {
-          "On Mighty Networks": "Verified",
-          "MN Join Date": member.created_at,
-          "MN Member ID": String(member.id),
+          "Intercom Synced": "Verified",
+          "Intercom Contact ID": contact.id,
+          "Intercom Verified At": new Date().toISOString(),
         }
-      : { "On Mighty Networks": "Not imported" };
+      : {
+          "Intercom Synced": "Not imported",
+          "Intercom Verified At": new Date().toISOString(),
+        };
     for (const ref of refs) {
-      if (ref.table === "clients") clientsPatches.push({ id: ref.recordId, fields });
-      else studentPatches.push({ id: ref.recordId, fields });
+      // Student Onboarding doesn't always have Intercom Verified At —
+      // strip that field for the student patch to avoid 422s.
+      if (ref.table === "clients") {
+        clientsPatches.push({ id: ref.recordId, fields });
+      } else {
+        const studentFields: Record<string, unknown> = {
+          "Intercom Synced": fields["Intercom Synced"],
+        };
+        if (contact) studentFields["Intercom Contact ID"] = contact.id;
+        studentPatches.push({ id: ref.recordId, fields: studentFields });
+      }
     }
-    if (member) foundCount++;
+    if (contact) foundCount++;
     else missingCount++;
-    // MN documented rate limit: 100 req/min standard, 300 req/min premium.
-    // 700ms per request keeps us comfortably under the standard limit.
-    await new Promise((r) => setTimeout(r, 700));
 
-    // Bail before Vercel's function timeout hits, so we always return a
-    // valid response and the next cron tick can pick up where we left off.
-    if (Date.now() - started > 270_000) {
-      break;
-    }
+    // Intercom rate limit is generous (1000/min) but stay polite.
+    await new Promise((r) => setTimeout(r, 100));
+    if (Date.now() - started > 55_000) break;
   }
 
-  // 4. PATCH both tables in batches of 10
   const flushBatches = async (tableId: string, all: { id: string; fields: Record<string, unknown> }[]) => {
     const failures: { status: number; body?: string }[] = [];
     for (let i = 0; i < all.length; i += 10) {
@@ -239,8 +250,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     checked: emailsToCheck.length,
-    foundOnMN: foundCount,
-    notOnMN: missingCount,
+    foundOnIntercom: foundCount,
+    notOnIntercom: missingCount,
     apiErrors: errorCount,
     apiErrorSamples: errorSamples,
     clientsUpdated: clientsPatches.length - cFails.length * 10,
@@ -251,5 +262,4 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// GET also works — handy for cron
 export const GET = POST;

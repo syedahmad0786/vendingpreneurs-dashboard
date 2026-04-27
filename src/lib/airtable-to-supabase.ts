@@ -41,6 +41,10 @@ type LeadRow = {
   close_lead_id: string | null;
   airtable_id: string | null;
   mn_invite_id: string | null;
+  /** Real MN member id from the MN Admin API verifier. */
+  mn_member_id: string | null;
+  /** Real Intercom contact id from the Intercom verifier. */
+  intercom_contact_id: string | null;
   vendhub_user_id: string | null;
   vendhub_org: string | null;
 };
@@ -88,9 +92,14 @@ function buildRowsFromAirtable(records: AirtableRecord[]): {
         null,
       sales_rep: (f["Sales Rep"] as string) || null,
       // Only the legacy Student Onboarding shape carries Close lead_* ids.
-      close_lead_id: cidStr.startsWith("lead_") ? cidStr : null,
+      // The Clients table now also has a dedicated Close Lead ID column.
+      close_lead_id:
+        ((f["Close Lead ID"] as string) || "").trim() ||
+        (cidStr.startsWith("lead_") ? cidStr : null),
       airtable_id: r.id,
       mn_invite_id: f["MN Invite ID"] ? String(f["MN Invite ID"]) : null,
+      mn_member_id: f["MN Member ID"] ? String(f["MN Member ID"]) : null,
+      intercom_contact_id: (f["Intercom Contact ID"] as string) || null,
       vendhub_user_id: (f["VendHub User ID"] as string) || null,
       vendhub_org: (f["VendHub Organization"] as string) || null,
       _raw: f,
@@ -148,42 +157,56 @@ function presenceRowsFor(
     out.push(make("close", "member", { external_id: airtableId }));
   }
 
-  // Mighty — Clients table additionally has On Skool / Skool Join Date.
-  const mnVerified = ((f["MN Verified"] as string) || "").toLowerCase();
-  const onSkool = ((f["On Skool"] as string) || "").toLowerCase() === "yes";
-  const skoolJoinDate = (f["Skool Join Date"] as string) || null;
+  // Mighty Networks — real source of truth is On Mighty Networks/MN Member ID
+  // populated by /api/verify/mighty-networks. Skool is a separate platform
+  // and is NOT used as a proxy.
+  const onMN = ((f["On Mighty Networks"] as string) || "").toLowerCase();
+  const mnMemberId = f["MN Member ID"] ? String(f["MN Member ID"]) : null;
+  const mnJoinDate = (f["MN Join Date"] as string) || null;
+  const mnVerifiedLegacy = ((f["MN Verified"] as string) || "").toLowerCase();
   let mnStatus: PresenceRow["status"] | null = null;
-  let mnJoinedAt: string | null = null;
-  if (["member", "joined", "active"].includes(mnVerified)) {
+  if (onMN === "verified" || onMN === "yes" || mnMemberId) {
     mnStatus = "member";
-    mnJoinedAt = (f["MN Verified At"] as string) || null;
-  } else if (onSkool || skoolJoinDate) {
+  } else if (["member", "joined", "active"].includes(mnVerifiedLegacy)) {
     mnStatus = "member";
-    mnJoinedAt = skoolJoinDate;
-  } else if (truthy(f["MN Invite Granted"]) || truthy(f["MN Invite ID"]) || truthy(f["Skool Granted"])) {
+  } else if (onMN === "waiting" || truthy(f["MN Invite Granted"]) || truthy(f["MN Invite ID"])) {
     mnStatus = "invited";
+  } else if (onMN === "not imported" || onMN === "no") {
+    mnStatus = "missing";
   }
   if (mnStatus) {
     out.push(
       make("mighty", mnStatus, {
-        external_id: f["MN Invite ID"] ? String(f["MN Invite ID"]) : null,
-        joined_at: mnJoinedAt,
+        // Real MN member id from API takes priority over the invite id.
+        external_id: mnMemberId || (f["MN Invite ID"] ? String(f["MN Invite ID"]) : null),
+        joined_at: mnJoinDate,
       })
     );
   }
 
-  // Intercom — Clients table uses "Intercom Synced" (text) instead of timestamp.
-  const icVerified = (f["Intercom Verified"] as string) || "";
-  const icSyncedTxt = isTruthy(f["Intercom Synced"]);
-  const icSyncedAt = isTruthy(f["Intercom Synced At"]);
+  // Intercom — real source of truth is Intercom Synced + Intercom Contact ID
+  // populated by /api/verify/intercom.
+  const icSynced = ((f["Intercom Synced"] as string) || "").toLowerCase();
+  const icContactId = (f["Intercom Contact ID"] as string) || null;
+  const icVerifiedAt = (f["Intercom Verified At"] as string) || null;
+  const icVerifiedLegacy = (f["Intercom Verified"] as string) || "";
   let icStatus: PresenceRow["status"] | null = null;
-  if (icVerified === "Verified") icStatus = "member";
-  else if (icSyncedAt || icSyncedTxt) icStatus = "invited";
-  else if (truthy(f["Intercome Failed?"])) icStatus = "failed";
+  if (icSynced === "verified" || icSynced === "yes" || icContactId) {
+    icStatus = "member";
+  } else if (icVerifiedLegacy === "Verified") {
+    icStatus = "member";
+  } else if (icSynced === "waiting") {
+    icStatus = "invited";
+  } else if (icSynced === "not imported" || icSynced === "no") {
+    icStatus = "missing";
+  } else if (truthy(f["Intercome Failed?"])) {
+    icStatus = "failed";
+  }
   if (icStatus) {
     out.push(
       make("intercom", icStatus, {
-        invited_at: (f["Intercom Synced At"] as string) || null,
+        external_id: icContactId,
+        invited_at: icVerifiedAt,
       })
     );
   }

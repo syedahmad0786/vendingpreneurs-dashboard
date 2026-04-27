@@ -50,8 +50,14 @@ export async function POST(req: NextRequest) {
         "Client ID*", "Hubspot Deal ID", "Membership Level", "Membership Level (Text)",
         "Sales Rep", "Date Added",
         "Sent Email File", "Welcome Email Sent: ",
-        "On Skool", "Skool Join Date",
+        // Mighty Networks (real verifier output)
+        "On Mighty Networks", "MN Join Date", "MN Member ID", "MN Invite Granted", "MN Invite ID",
+        // Intercom (real verifier output)
+        "Intercom Synced", "Intercom Verified At", "Intercom Contact ID",
+        // VendHub
         "On Vendstack", "Invited to VendHUB", "Has Machine", "Machines Placed",
+        // Close lead deep-link
+        "Close Lead ID",
       ],
       cacheTtl: 0,
     });

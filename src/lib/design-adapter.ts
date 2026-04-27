@@ -74,8 +74,16 @@ export interface DesignLead {
   _clientId?: string;
   _programTier?: string;
   _mnInviteId?: string;
+  /** Real Mighty Networks member id (from /api/verify/mighty-networks). */
+  _mnMemberId?: string;
+  /** Real Intercom contact id (from /api/verify/intercom). */
+  _intercomContactId?: string;
+  /** Close CRM lead_xxx id, if known. */
+  _closeLeadId?: string;
   _vendHubOrganization?: string;
   _vendHubUserId?: string;
+  /** Airtable record id used for direct Airtable links. */
+  _airtableRecordId?: string;
 }
 
 function initialsOf(name: string): string {
@@ -212,8 +220,12 @@ export function adaptLead(lead: LeadPipeline): DesignLead {
     _clientId: lead.clientId,
     _programTier: lead.programTier,
     _mnInviteId: lead.mnInviteId,
+    _mnMemberId: lead.mnMemberId,
+    _intercomContactId: lead.intercomContactId,
+    _closeLeadId: lead.closeLeadId,
     _vendHubOrganization: lead.vendHubOrganization,
     _vendHubUserId: lead.vendHubUserId,
+    _airtableRecordId: lead.airtableRecordId,
   };
 }
 

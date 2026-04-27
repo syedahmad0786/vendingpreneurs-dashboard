@@ -4,6 +4,14 @@ import { useEffect } from "react";
 import { Icon } from "./DashboardIcons";
 import { PlatformLogos } from "./PlatformLogos";
 import type { DesignLead, DesignStage } from "@/lib/design-adapter";
+import {
+  closeLink,
+  airtableLink,
+  mightyLink,
+  intercomLink,
+  vendhubLink,
+  emailLink,
+} from "@/lib/platform-links";
 
 export function LeadDrawer({
   lead,
@@ -112,79 +120,88 @@ export function LeadDrawer({
               <div className="drawer-section">
                 <h4>Open in platform</h4>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {/* Close CRM */}
-                  {lead._clientId ? (
-                    <a
-                      className="btn btn--ghost btn--xs"
-                      href={`https://app.close.com/lead/${lead._clientId}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Icon.External size={11} /> Close CRM
-                    </a>
-                  ) : (
-                    <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>Close CRM — no lead id</span>
-                  )}
-                  {/* Airtable Student */}
-                  <a
-                    className="btn btn--ghost btn--xs"
-                    href={`https://airtable.com/appgqED05AlPLi0ar/tblMLFYTeoqrtmgXQ/${lead.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Icon.External size={11} /> Airtable
-                  </a>
-                  {/* Mighty Networks — search by invite id if we have it, else by email */}
-                  {lead.email && lead.email !== "—" ? (
-                    <a
-                      className="btn btn--ghost btn--xs"
-                      href={
-                        lead._mnInviteId
-                          ? `https://vendingpreneurs.mn.co/admin/invites?search=${encodeURIComponent(lead.email)}`
-                          : `https://vendingpreneurs.mn.co/admin/members?search=${encodeURIComponent(lead.email)}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={lead._mnInviteId ? `MN invite #${lead._mnInviteId}` : "Search MN members by email"}
-                    >
-                      <Icon.External size={11} /> Mighty Networks
-                    </a>
-                  ) : (
-                    <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>Mighty Networks — no email</span>
-                  )}
-                  {/* Intercom — search contacts by email */}
-                  {lead.email && lead.email !== "—" ? (
-                    <a
-                      className="btn btn--ghost btn--xs"
-                      href={`https://app.intercom.com/a/apps/_/users/search?query=${encodeURIComponent(lead.email)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Icon.External size={11} /> Intercom
-                    </a>
-                  ) : (
-                    <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>Intercom — no email</span>
-                  )}
-                  {/* VendHub — open the activated users sheet, and if we have an org, append it */}
-                  <a
-                    className="btn btn--ghost btn--xs"
-                    href={
-                      lead._vendHubOrganization
-                        ? `https://app.vendhub.com/organizations?search=${encodeURIComponent(lead._vendHubOrganization)}`
-                        : `https://app.vendhub.com/`
+                  {/* Close CRM — direct link when we have lead_xxx id */}
+                  {(() => {
+                    const link = closeLink(lead._closeLeadId || lead._clientId);
+                    return link ? (
+                      <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={link.externalId}>
+                        <Icon.External size={11} /> Close CRM
+                      </a>
+                    ) : (
+                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }} title="No Close lead_* id on record">
+                        Close CRM — not linked
+                      </span>
+                    );
+                  })()}
+                  {/* Airtable Clients record */}
+                  {(() => {
+                    const link = airtableLink(lead._airtableRecordId || lead.id);
+                    return link ? (
+                      <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer">
+                        <Icon.External size={11} /> Airtable
+                      </a>
+                    ) : null;
+                  })()}
+                  {/* Mighty Networks — direct link when we have member id */}
+                  {(() => {
+                    const link = mightyLink(lead._mnMemberId);
+                    if (link) {
+                      return (
+                        <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={`MN member #${link.externalId}`}>
+                          <Icon.External size={11} /> Mighty Networks
+                        </a>
+                      );
                     }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={
-                      lead._vendHubOrganization
-                        ? `VendHub org: ${lead._vendHubOrganization}`
-                        : lead._vendHubUserId
-                        ? `VendHub user ${lead._vendHubUserId}`
-                        : "VendHub — not yet activated"
+                    return (
+                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>
+                        Mighty Networks — not imported
+                      </span>
+                    );
+                  })()}
+                  {/* Intercom — direct link when we have contact id */}
+                  {(() => {
+                    const link = intercomLink(lead._intercomContactId);
+                    if (link) {
+                      return (
+                        <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={`Intercom contact ${link.externalId}`}>
+                          <Icon.External size={11} /> Intercom
+                        </a>
+                      );
                     }
-                  >
-                    <Icon.External size={11} /> VendHub
-                  </a>
+                    return lead.email && lead.email !== "—" ? (
+                      <a
+                        className="btn btn--ghost btn--xs"
+                        href={`https://app.intercom.com/a/apps/_/users/search?query=${encodeURIComponent(lead.email)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Not yet verified — search Intercom by email"
+                      >
+                        <Icon.External size={11} /> Intercom (search)
+                      </a>
+                    ) : (
+                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>Intercom — not imported</span>
+                    );
+                  })()}
+                  {/* VendHub — direct user/org link when we have either */}
+                  {(() => {
+                    const link = vendhubLink(lead._vendHubUserId, lead._vendHubOrganization);
+                    return link ? (
+                      <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={link.externalId}>
+                        <Icon.External size={11} /> VendHub
+                      </a>
+                    ) : (
+                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>VendHub — not yet activated</span>
+                    );
+                  })()}
+                  {/* Email */}
+                  {(() => {
+                    const link = emailLink(lead.email && lead.email !== "—" ? lead.email : undefined);
+                    return link ? (
+                      <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer">
+                        <Icon.External size={11} /> Email
+                      </a>
+                    ) : null;
+                  })()}
                   {/* n8n — filter executions by lead id */}
                   {lead._clientId && (
                     <a
