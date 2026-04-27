@@ -94,6 +94,11 @@ export interface PlatformGapRow {
   email: string;
   full_name: string | null;
   close_lead_id: string | null;
+  airtable_id: string | null;
+  mn_member_id: string | null;
+  intercom_contact_id: string | null;
+  vendhub_user_id: string | null;
+  vendhub_org: string | null;
   missing_close: boolean;
   missing_airtable: boolean;
   missing_mighty: boolean;

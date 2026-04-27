@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(5000, Math.max(1, parseInt(searchParams.get("limit") || "500", 10) || 500));
 
   const query: Record<string, string | number> = {
-    select: "id,email,full_name,close_lead_id,missing_close,missing_airtable,missing_mighty,missing_intercom,missing_vendhub,classification",
+    select: "id,email,full_name,close_lead_id,airtable_id,mn_member_id,intercom_contact_id,vendhub_user_id,vendhub_org,missing_close,missing_airtable,missing_mighty,missing_intercom,missing_vendhub,classification",
     limit,
     order: "email.asc",
   };

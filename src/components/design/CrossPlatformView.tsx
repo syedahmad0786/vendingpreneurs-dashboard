@@ -4,12 +4,24 @@ import { useEffect, useState } from "react";
 import { Icon } from "./DashboardIcons";
 import { PlatformLogos } from "./PlatformLogos";
 import { DonutChart, BarChart } from "./Charts";
+import {
+  closeLink,
+  airtableLink,
+  mightyLink,
+  intercomLink,
+  vendhubLink,
+} from "@/lib/platform-links";
 
 interface GapRow {
   id: string;
   email: string;
   full_name: string | null;
   close_lead_id: string | null;
+  airtable_id: string | null;
+  mn_member_id: string | null;
+  intercom_contact_id: string | null;
+  vendhub_user_id: string | null;
+  vendhub_org: string | null;
   missing_close: boolean;
   missing_airtable: boolean;
   missing_mighty: boolean;
@@ -247,11 +259,33 @@ export function CrossPlatformView() {
             <span className="mono" style={{ fontSize: 11, color: r.close_lead_id ? "var(--fg-2)" : "var(--err)" }}>
               {r.close_lead_id ? r.close_lead_id.slice(0, 20) : "—"}
             </span>
-            <span style={{ textAlign: "center" }}>{presentIcon(!r.missing_close)}</span>
-            <span style={{ textAlign: "center" }}>{presentIcon(!r.missing_airtable)}</span>
-            <span style={{ textAlign: "center" }}>{presentIcon(!r.missing_mighty)}</span>
-            <span style={{ textAlign: "center" }}>{presentIcon(!r.missing_intercom)}</span>
-            <span style={{ textAlign: "center" }}>{presentIcon(!r.missing_vendhub)}</span>
+            {/* Each cell becomes a deep link when we have an id for that platform.
+                Falls back to icon-only when no id (still shows ✓/✗). */}
+            {(() => {
+              const cells = [
+                { present: !r.missing_close,    link: closeLink(r.close_lead_id || undefined, r.email) },
+                { present: !r.missing_airtable, link: airtableLink(r.airtable_id || undefined) },
+                { present: !r.missing_mighty,   link: mightyLink(r.mn_member_id || undefined) },
+                { present: !r.missing_intercom, link: intercomLink(r.intercom_contact_id || undefined, r.email) },
+                { present: !r.missing_vendhub,  link: vendhubLink(r.vendhub_user_id || undefined, r.vendhub_org || undefined) },
+              ];
+              return cells.map((c, i) =>
+                c.link ? (
+                  <a
+                    key={i}
+                    href={c.link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`${c.link.label}${c.link.externalId ? " · " + c.link.externalId : ""}`}
+                    style={{ textAlign: "center", textDecoration: "none" }}
+                  >
+                    {presentIcon(c.present)}
+                  </a>
+                ) : (
+                  <span key={i} style={{ textAlign: "center" }}>{presentIcon(c.present)}</span>
+                )
+              );
+            })()}
             <span style={{ fontSize: 10, color: "var(--fg-3)" }}>{r.classification.replace(/_/g, " ")}</span>
           </div>
         ))}

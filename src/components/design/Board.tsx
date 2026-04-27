@@ -69,11 +69,12 @@ function LeadCard({
         onClick={(e) => e.stopPropagation()}
       >
         {(() => {
+          const emailForSearch = lead.email && lead.email !== "—" ? lead.email : undefined;
           const links = [
-            { L: PlatformLogos.close,    link: closeLink(lead._closeLeadId || lead._clientId) },
+            { L: PlatformLogos.close,    link: closeLink(lead._closeLeadId || lead._clientId, emailForSearch) },
             { L: PlatformLogos.airtable, link: airtableLink(lead._airtableRecordId || lead.id) },
             { L: PlatformLogos.mighty,   link: mightyLink(lead._mnMemberId) },
-            { L: PlatformLogos.intercom, link: intercomLink(lead._intercomContactId) },
+            { L: PlatformLogos.intercom, link: intercomLink(lead._intercomContactId, emailForSearch) },
             { L: PlatformLogos.vendhub,  link: vendhubLink(lead._vendHubUserId, lead._vendHubOrganization) },
           ].filter((x) => x.link);
           return links.map(({ L, link }) =>

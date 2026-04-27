@@ -15,8 +15,9 @@ const AIRTABLE_CLIENTS_TABLE = "tblwDucKYAsPDVBA2";
 const MN_HOST = process.env.NEXT_PUBLIC_MN_COMMUNITY_HOST || "community.vendingpreneurs.com";
 // Intercom workspace id is part of the URL pattern.
 const INTERCOM_APP = process.env.NEXT_PUBLIC_INTERCOM_APP_ID || "_";
-// VendHub UI host
-const VENDHUB_HOST = process.env.NEXT_PUBLIC_VENDHUB_HOST || "app.vendhubhq.com";
+// VendHub UI host. The product lives on the marketing domain (Clerk-gated)
+// at www.vendhubhq.com — there is no app.vendhubhq.com subdomain.
+const VENDHUB_HOST = process.env.NEXT_PUBLIC_VENDHUB_HOST || "www.vendhubhq.com";
 // Close CRM org identifier — leave default to use the global lead URL.
 const CLOSE_HOST = "app.close.com";
 
@@ -39,15 +40,31 @@ export interface PlatformLink {
   externalId?: string;
 }
 
-/** Build a Close CRM lead link. Requires the `lead_*` id. */
-export function closeLink(leadId?: string): PlatformLink | null {
-  if (!leadId || !leadId.startsWith("lead_")) return null;
-  return {
-    platform: "close",
-    label: "Open in Close",
-    url: `https://${CLOSE_HOST}/lead/${leadId}/`,
-    externalId: leadId,
-  };
+/**
+ * Build a Close CRM lead link.
+ *
+ * If we have the canonical Close `lead_*` id → direct lead URL.
+ * If we only have an email → search URL so users can still find the record.
+ * Otherwise null (button hidden).
+ */
+export function closeLink(leadId?: string, email?: string): PlatformLink | null {
+  if (leadId && leadId.startsWith("lead_")) {
+    return {
+      platform: "close",
+      label: "Open in Close",
+      url: `https://${CLOSE_HOST}/lead/${leadId}/`,
+      externalId: leadId,
+    };
+  }
+  if (email) {
+    return {
+      platform: "close",
+      label: "Search in Close",
+      url: `https://${CLOSE_HOST}/search/${encodeURIComponent(email)}/`,
+      externalId: email,
+    };
+  }
+  return null;
 }
 
 /** Build a Mighty Networks member link. */
@@ -61,26 +78,54 @@ export function mightyLink(memberId?: string): PlatformLink | null {
   };
 }
 
-/** Build an Intercom contact link. Workspace-aware. */
-export function intercomLink(contactId?: string): PlatformLink | null {
-  if (!contactId) return null;
-  return {
-    platform: "intercom",
-    label: "Open in Intercom",
-    url: `https://app.intercom.com/a/apps/${INTERCOM_APP}/users/${contactId}/all-conversations`,
-    externalId: contactId,
-  };
+/**
+ * Build an Intercom contact link.
+ * If we have the contact id → direct contact URL.
+ * If we only have email → contact search URL (still useful).
+ */
+export function intercomLink(contactId?: string, email?: string): PlatformLink | null {
+  if (contactId) {
+    return {
+      platform: "intercom",
+      label: "Open in Intercom",
+      url: `https://app.intercom.com/a/apps/${INTERCOM_APP}/users/${contactId}/all-conversations`,
+      externalId: contactId,
+    };
+  }
+  if (email) {
+    return {
+      platform: "intercom",
+      label: "Search in Intercom",
+      url: `https://app.intercom.com/a/apps/${INTERCOM_APP}/users/search?query=${encodeURIComponent(email)}`,
+      externalId: email,
+    };
+  }
+  return null;
 }
 
-/** Build a VendHub user/org link. */
+/**
+ * Build a VendHub user/org link. The exact internal route varies by VendHub
+ * tenant — we route to /dashboard which lands authenticated users in the
+ * right place, then they can navigate to the operator. Tweak via
+ * NEXT_PUBLIC_VENDHUB_HOST + NEXT_PUBLIC_VENDHUB_USER_PATH if needed.
+ */
 export function vendhubLink(userId?: string, org?: string): PlatformLink | null {
-  if (!userId && !org) return null;
+  if (!userId && !org) {
+    // No user/org id at all → land them in the VendHub dashboard root
+    return {
+      platform: "vendhub",
+      label: "Open VendHub dashboard",
+      url: `https://${VENDHUB_HOST}/dashboard`,
+    };
+  }
+  const userPath = process.env.NEXT_PUBLIC_VENDHUB_USER_PATH || "operators";
+  const orgPath = process.env.NEXT_PUBLIC_VENDHUB_ORG_PATH || "organizations";
   return {
     platform: "vendhub",
     label: "Open in VendHub",
     url: userId
-      ? `https://${VENDHUB_HOST}/users/${userId}`
-      : `https://${VENDHUB_HOST}/orgs/${org}`,
+      ? `https://${VENDHUB_HOST}/${userPath}/${encodeURIComponent(userId)}`
+      : `https://${VENDHUB_HOST}/${orgPath}/${encodeURIComponent(org!)}`,
     externalId: userId || org,
   };
 }
@@ -113,11 +158,11 @@ export function emailLink(email?: string): PlatformLink | null {
  */
 export function platformLinksForLead(lead: LeadPipeline): PlatformLink[] {
   return [
-    closeLink(lead.closeLeadId || lead.clientId),
+    closeLink(lead.closeLeadId || lead.clientId, lead.email),
     emailLink(lead.email),
     airtableLink(lead.airtableRecordId),
     mightyLink(lead.mnMemberId),
-    intercomLink(lead.intercomContactId),
+    intercomLink(lead.intercomContactId, lead.email),
     vendhubLink(lead.vendHubUserId, lead.vendHubOrganization),
   ].filter((x): x is PlatformLink => Boolean(x));
 }
@@ -126,7 +171,7 @@ export function platformLinksForLead(lead: LeadPipeline): PlatformLink[] {
 export function platformLinkForStep(lead: LeadPipeline, stepId: string): PlatformLink | null {
   switch (stepId) {
     case "close_crm":
-      return closeLink(lead.closeLeadId || lead.clientId);
+      return closeLink(lead.closeLeadId || lead.clientId, lead.email);
     case "email_validation":
       return emailLink(lead.email);
     case "airtable_record":
@@ -134,7 +179,7 @@ export function platformLinkForStep(lead: LeadPipeline, stepId: string): Platfor
     case "mighty_networks":
       return mightyLink(lead.mnMemberId);
     case "intercom":
-      return intercomLink(lead.intercomContactId);
+      return intercomLink(lead.intercomContactId, lead.email);
     case "vendhub":
       return vendhubLink(lead.vendHubUserId, lead.vendHubOrganization);
     default:

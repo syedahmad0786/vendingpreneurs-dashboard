@@ -120,15 +120,18 @@ export function LeadDrawer({
               <div className="drawer-section">
                 <h4>Open in platform</h4>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {/* Close CRM — direct link when we have lead_xxx id */}
+                  {/* Close CRM — direct link when we have lead_xxx id, search fallback otherwise */}
                   {(() => {
-                    const link = closeLink(lead._closeLeadId || lead._clientId);
+                    const link = closeLink(
+                      lead._closeLeadId || lead._clientId,
+                      lead.email && lead.email !== "—" ? lead.email : undefined
+                    );
                     return link ? (
-                      <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={link.externalId}>
-                        <Icon.External size={11} /> Close CRM
+                      <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={`${link.label} · ${link.externalId || ""}`}>
+                        <Icon.External size={11} /> {link.label.replace("Open in ", "").replace("Search in ", "Search ")}
                       </a>
                     ) : (
-                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }} title="No Close lead_* id on record">
+                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }} title="No Close lead_* id and no email">
                         Close CRM — not linked
                       </span>
                     );
@@ -158,28 +161,18 @@ export function LeadDrawer({
                       </span>
                     );
                   })()}
-                  {/* Intercom — direct link when we have contact id */}
+                  {/* Intercom — direct link when we have contact id, search fallback */}
                   {(() => {
-                    const link = intercomLink(lead._intercomContactId);
-                    if (link) {
-                      return (
-                        <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={`Intercom contact ${link.externalId}`}>
-                          <Icon.External size={11} /> Intercom
-                        </a>
-                      );
-                    }
-                    return lead.email && lead.email !== "—" ? (
-                      <a
-                        className="btn btn--ghost btn--xs"
-                        href={`https://app.intercom.com/a/apps/_/users/search?query=${encodeURIComponent(lead.email)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Not yet verified — search Intercom by email"
-                      >
-                        <Icon.External size={11} /> Intercom (search)
+                    const link = intercomLink(
+                      lead._intercomContactId,
+                      lead.email && lead.email !== "—" ? lead.email : undefined
+                    );
+                    return link ? (
+                      <a className="btn btn--ghost btn--xs" href={link.url} target="_blank" rel="noopener noreferrer" title={`${link.label} · ${link.externalId || ""}`}>
+                        <Icon.External size={11} /> {link.label.replace("Open in ", "").replace("Search in ", "Search ")}
                       </a>
                     ) : (
-                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>Intercom — not imported</span>
+                      <span className="btn btn--ghost btn--xs" style={{ opacity: 0.4, pointerEvents: "none" }}>Intercom — no email</span>
                     );
                   })()}
                   {/* VendHub — direct user/org link when we have either */}

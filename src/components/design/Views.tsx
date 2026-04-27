@@ -15,15 +15,16 @@ import {
 
 // Map a stage's platform to the deep link for that lead+stage.
 function deepLinkForStage(lead: DesignLead, stage: DesignStage) {
+  const emailForSearch = lead.email && lead.email !== "—" ? lead.email : undefined;
   switch (stage.platform) {
     case "close":
-      return closeLink(lead._closeLeadId || lead._clientId);
+      return closeLink(lead._closeLeadId || lead._clientId, emailForSearch);
     case "airtable":
       return airtableLink(lead._airtableRecordId || lead.id);
     case "mighty":
       return mightyLink(lead._mnMemberId);
     case "intercom":
-      return intercomLink(lead._intercomContactId);
+      return intercomLink(lead._intercomContactId, emailForSearch);
     case "vendhub":
       return vendhubLink(lead._vendHubUserId, lead._vendHubOrganization);
     default:
