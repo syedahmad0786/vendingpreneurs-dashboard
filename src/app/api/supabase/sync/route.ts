@@ -43,13 +43,15 @@ export async function POST(req: NextRequest) {
 
   const started = Date.now();
   try {
-    const records = await fetchTable("studentOnboarding", {
+    const records = await fetchTable("clients", {
       fields: [
-        "Full Name", "Best Email", "Client ID", "Program Tier Purchased",
-        "Sales Rep", "Create Date", "MN Invite Granted", "MN Invite ID",
-        "MN Verified", "Intercom Synced At", "Intercome Failed?",
-        "Intercom Verified", "VendHub Status", "VendHub Organization",
-        "VendHub User ID", "Archived",
+        // Only fields that actually exist on Clients tblwDucKYAsPDVBA2
+        "Full Name", "Personal Email", "Business Email",
+        "Client ID*", "Hubspot Deal ID", "Membership Level", "Membership Level (Text)",
+        "Sales Rep", "Date Added",
+        "Sent Email File", "Welcome Email Sent: ",
+        "On Skool", "Skool Join Date",
+        "On Vendstack", "Invited to VendHUB", "Has Machine", "Machines Placed",
       ],
       cacheTtl: 0,
     });

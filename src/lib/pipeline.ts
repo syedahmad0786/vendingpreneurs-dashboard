@@ -231,8 +231,25 @@ export function derivePipeline(
     if (step && !latestErrorByStep[step]) latestErrorByStep[step] = err;
   }
 
-  const createdAtIso = f["Create Date"] as string | undefined;
+  // Clients table uses "Date Added" (createdTime field). Older Student
+  // Onboarding rows used "Create Date". Read whichever is present.
+  const createdAtIso =
+    (f["Date Added"] as string | undefined) ||
+    (f["Create Date"] as string | undefined);
   const ageHours = hoursSince(createdAtIso);
+
+  // Resolve email from any of the Clients table's email fields. Order matters —
+  // Personal Email is the primary contact email; vendhub_email is for the
+  // operator app sync. Falls back to legacy "Best Email" for any leftover
+  // Student Onboarding rows.
+  const resolvedEmail = (
+    (f["Personal Email"] as string) ||
+    (f["Email"] as string) ||
+    (f["Business Email"] as string) ||
+    (f["vendhub_email"] as string) ||
+    (f["Best Email"] as string) ||
+    ""
+  ).trim();
 
   // Per-step inference
   const steps: StepState[] = STEP_ORDER.map((id) => {
@@ -250,12 +267,27 @@ export function derivePipeline(
       : null;
 
     if (id === "close_crm") {
-      const clientId = f["Client ID"] as string | undefined;
+      // For Clients-table-sourced rows: being in the Clients table means a
+      // deal closed somewhere (Close CRM or Hubspot). We mark this step
+      // success unless an explicit error is logged. For the legacy
+      // Student Onboarding lead_* shape, we still honor the prefix.
       if (errorFromOpen) {
         return { ...base, ...errorFromOpen, detail: errorFromOpen.error.type };
       }
-      if (clientId && clientId.startsWith("lead_")) {
-        return { ...base, status: "success", detail: clientId };
+      // Clients table uses "Client ID*" (autoNumber). Student Onboarding
+      // table used "Client ID" (text containing the Close lead_* id).
+      // Read either.
+      const clientIdAny = (f["Client ID"] ?? f["Client ID*"]) as string | number | undefined;
+      const clientIdStr = clientIdAny !== undefined && clientIdAny !== null ? String(clientIdAny) : "";
+      const hubspotDealId = (f["Hubspot Deal ID"] as number | undefined) || 0;
+      if (clientIdStr.startsWith("lead_")) {
+        return { ...base, status: "success", detail: clientIdStr };
+      }
+      if (Number(hubspotDealId) > 0) {
+        return { ...base, status: "success", detail: `Hubspot #${hubspotDealId}` };
+      }
+      if (clientIdStr) {
+        return { ...base, status: "success", detail: `Client #${clientIdStr}` };
       }
       return { ...base, status: "pending" };
     }
@@ -264,26 +296,26 @@ export function derivePipeline(
       if (errorFromOpen) {
         return { ...base, ...errorFromOpen };
       }
-      const bestEmail = ((f["Best Email"] as string) || "").trim();
       // Downstream success implies email was validated upstream.
-      const mnOk = isTruthy(f["MN Invite Granted"]) || isTruthy(f["MN Invite ID"]);
-      const intercomOk = isTruthy(f["Intercom Synced At"]);
-      if (mnOk || intercomOk || isTruthy(f["Was Email sent"])) {
-        return { ...base, status: "success", detail: bestEmail || undefined };
+      const mnOk = isTruthy(f["MN Invite Granted"]) || isTruthy(f["MN Invite ID"]) || isTruthy(f["Skool Granted"]);
+      const intercomOk = isTruthy(f["Intercom Synced At"]) || isTruthy(f["Intercom Synced"]);
+      if (resolvedEmail && (mnOk || intercomOk || isTruthy(f["Was Email sent"]) || isTruthy(f["Sent Email File"]))) {
+        return { ...base, status: "success", detail: resolvedEmail };
       }
-      // No email on record at all — the onboarding workflow never pulled the
-      // email from Close CRM successfully. Nothing downstream can happen until
-      // this is fixed, so surface it here rather than as a cascade of downstream errors.
-      if (!bestEmail && ageHours > 24) {
+      if (resolvedEmail) {
+        return { ...base, status: "success", detail: resolvedEmail };
+      }
+      // No email anywhere — Personal / Business / Email / vendhub_email / Best Email all empty.
+      if (!resolvedEmail && ageHours > 24) {
         return {
           ...base,
           status: "error",
-          errorMessage: "No email on record — Close CRM lead is missing an email, blocks all downstream steps",
+          errorMessage: "No email on record — every email field is empty, blocks downstream steps",
           error: {
-            message: "No email on record — Close CRM lead is missing an email, blocks all downstream steps",
+            message: "No email on record — every email field is empty, blocks downstream steps",
             humanized: false,
-            type: "Missing email on Close lead",
-            node: "Main onboarding workflow — Pull email from Close CRM",
+            type: "Missing email on Client",
+            node: "Source CRM — should populate Personal Email or Business Email",
           },
           detail: "Blocked — no email",
         };
@@ -295,26 +327,14 @@ export function derivePipeline(
       if (errorFromOpen) {
         return { ...base, ...errorFromOpen, detail: errorFromOpen.error.type };
       }
-      // The student record itself exists whenever we see this lead.
-      // Consider the step "fully done" when a Clients record is linked too.
-      const hasStudent = Boolean(student.id);
-      const clientsLink = f["Clients"];
-      const hasClient = Array.isArray(clientsLink) && (clientsLink as unknown[]).length > 0;
-      if (hasStudent && hasClient) {
-        return {
-          ...base,
-          status: "success",
-          detail: `Student + Client linked`,
-        };
-      }
-      if (hasStudent) {
-        return {
-          ...base,
-          status: "success",
-          detail: "Student record created",
-        };
-      }
-      return { ...base, status: "pending", detail: "Awaiting record creation" };
+      // We're reading the Clients table — the row's existence is the success
+      // signal. (When the source was Student Onboarding, we additionally checked
+      // for a linked Clients record. Now we ARE the Client.)
+      return {
+        ...base,
+        status: "success",
+        detail: "Client record present",
+      };
     }
 
     if (id === "mighty_networks") {
@@ -322,6 +342,11 @@ export function derivePipeline(
       const mnId = f["MN Invite ID"] as string | undefined;
       const mnVerified = ((f["MN Verified"] as string) || "").trim();
       const mnVerifiedAt = (f["MN Verified At"] as string) || undefined;
+      // Clients-table-only signals: On Skool=Yes + Skool Join Date confirm
+      // the customer joined the community.
+      const onSkool = ((f["On Skool"] as string) || "").toLowerCase() === "yes";
+      const skoolJoinDate = (f["Skool Join Date"] as string) || undefined;
+      const skoolGranted = (f["Skool Granted"] as string) || undefined;
 
       // Live-verified as a joined member — always wins
       if (mnVerified === "Member" || mnVerified === "Joined" || mnVerified === "Active") {
@@ -331,12 +356,16 @@ export function derivePipeline(
           detail: mnVerifiedAt ? `Member since ${mnVerifiedAt.split("T")[0]}` : "Verified member",
         };
       }
+      if (onSkool || skoolJoinDate) {
+        return {
+          ...base,
+          status: "success",
+          detail: skoolJoinDate ? `Joined ${skoolJoinDate.split("T")[0]}` : "On Skool",
+        };
+      }
 
-      // Invite was successfully sent — the onboarding side worked.
-      // The lead just hasn't accepted yet. This is NOT an error — it's waiting.
-      // This takes precedence over stale error records that were logged before
-      // the invite eventually went out, or when n8n mis-flagged a success as a failure.
-      if (isTruthy(granted) || isTruthy(mnId)) {
+      // Invite sent but lead hasn't accepted — waiting on customer.
+      if (isTruthy(granted) || isTruthy(mnId) || isTruthy(skoolGranted)) {
         return {
           ...base,
           status: "waiting_for_customer",
@@ -345,27 +374,23 @@ export function derivePipeline(
         };
       }
 
-      // No invite was sent and there's an open error — surface it.
       if (errorFromOpen) {
         return { ...base, ...errorFromOpen };
       }
-
       return { ...base, status: "pending" };
     }
 
     if (id === "intercom") {
       const verified = (f["Intercom Verified"] as string) || "";
       const syncedAt = f["Intercom Synced At"] as string | undefined;
+      // Clients table uses "Intercom Synced" (text). Either column counts.
+      const intercomSynced = isTruthy(f["Intercom Synced"]) || isTruthy(syncedAt);
       const hardFailed = isTruthy(f["Intercome Failed?"]);
-      const bestEmail = ((f["Best Email"] as string) || "").trim();
 
-      // If there's no email, this step is blocked upstream at email_validation.
-      // Don't double-count as an Intercom error.
-      if (!bestEmail) {
+      if (!resolvedEmail) {
         return { ...base, status: "pending", detail: "Blocked — no email" };
       }
 
-      // Live-verified from Intercom API — always wins
       if (verified === "Verified") {
         return {
           ...base,
@@ -374,11 +399,19 @@ export function derivePipeline(
         };
       }
 
-      // Hard failure flag set by the main onboarding workflow. We only
-      // surface this as an error if there's ALSO an open Airtable error row
-      // for the Intercom step. Without that row the flag is just history —
-      // once the user marks errors Resolved we stop showing the error.
-      if (hardFailed && !isTruthy(syncedAt) && openError) {
+      // Clients table doesn't track Intercom directly. Infer success from
+      // downstream activity: if the customer is on Skool/Mighty (joined a
+      // community) OR on VendHub (placing machines), the upstream Intercom
+      // sync must have run successfully — Intercom is the gate before both.
+      const onSkool = ((f["On Skool"] as string) || "").toLowerCase() === "yes";
+      const skoolJoinDate = f["Skool Join Date"] as string | undefined;
+      const onVendstack = ((f["On Vendstack"] as string) || "").toLowerCase() === "yes";
+      const hasMachine = ((f["Has Machine"] as string) || "").toLowerCase() === "yes";
+      if (onSkool || skoolJoinDate || onVendstack || hasMachine) {
+        return { ...base, status: "success", detail: "Inferred from downstream activity" };
+      }
+
+      if (hardFailed && !intercomSynced && openError) {
         return {
           ...base,
           status: "error",
@@ -387,21 +420,18 @@ export function derivePipeline(
             message: "Intercom sync flagged as failed in Airtable",
             humanized: false,
             type: "Airtable flag",
-            node: "Intercom sync node in main onboarding workflow",
+            node: "Intercom sync node",
           },
         };
       }
 
-      // Upstream onboarding succeeded if anything downstream of email
-      // validation worked — that means the Intercom sync call went out.
-      // Intercom's public search won't return unconfirmed contacts, so a
-      // later "Not Found" from the verify workflow just means the lead
-      // hasn't clicked the confirmation email. That's waiting, not error.
       const upstreamProgressed =
-        isTruthy(syncedAt) ||
+        intercomSynced ||
         isTruthy(f["MN Invite Granted"]) ||
         isTruthy(f["MN Invite ID"]) ||
-        isTruthy(f["Was Email sent"]);
+        isTruthy(f["Skool Granted"]) ||
+        isTruthy(f["Was Email sent"]) ||
+        isTruthy(f["Sent Email File"]);
 
       if (upstreamProgressed) {
         return {
@@ -410,7 +440,7 @@ export function derivePipeline(
           waitingOnCustomer: true,
           detail: verified === "Not Found"
             ? "Synced · waiting for lead to confirm"
-            : "Synced · awaiting Intercom verification",
+            : intercomSynced ? "Synced · awaiting Intercom verification" : "Awaiting Intercom verification",
         };
       }
 
@@ -418,8 +448,6 @@ export function derivePipeline(
         return { ...base, status: "pending", detail: "Awaiting Intercom sync" };
       }
 
-      // Only reach here if NO sync was ever attempted AND no upstream
-      // progress was made. That's a legitimate error.
       if (errorFromOpen) {
         return { ...base, ...errorFromOpen };
       }
@@ -450,6 +478,30 @@ export function derivePipeline(
       const vhStatus = ((f["VendHub Status"] as string) || "").toUpperCase();
       const org = (f["VendHub Organization"] as string) || undefined;
       const userId = (f["VendHub User ID"] as string) || undefined;
+      // Clients-table-only signals: On Vendstack=Yes / in_vendhub=true /
+      // Has Machine=Yes — any of these confirm the customer is set up on VendHub.
+      const onVendstack = ((f["On Vendstack"] as string) || "").toLowerCase() === "yes";
+      const inVendhub = isTruthy(f["in_vendhub"]);
+      const hasMachine = ((f["Has Machine"] as string) || "").toLowerCase() === "yes";
+      const invitedToVendhub = isTruthy(f["Invited to VendHUB"]) || isTruthy(f["invited_to_vendhub"]);
+      const machinesPlaced = Number(f["Machines Placed"]) || Number(f["Total Number of Machines"]) || 0;
+      if (onVendstack || inVendhub || hasMachine || machinesPlaced > 0) {
+        return {
+          ...base,
+          status: "success",
+          detail: machinesPlaced > 0
+            ? `${machinesPlaced} machine${machinesPlaced === 1 ? "" : "s"} placed`
+            : "On VendHub",
+        };
+      }
+      if (invitedToVendhub) {
+        return {
+          ...base,
+          status: "waiting_for_customer",
+          waitingOnCustomer: true,
+          detail: "Invited · waiting to activate",
+        };
+      }
       if (vhStatus === "ACTIVE") {
         return {
           ...base,
@@ -528,15 +580,28 @@ export function derivePipeline(
     overallStatus = "success";
   }
 
+  // Map Clients-table fields onto our canonical LeadPipeline shape. Where
+  // the Clients table doesn't carry an exact equivalent (e.g. it uses
+  // "Membership Level" instead of "Program Tier Purchased"), we substitute
+  // the closest field. resolvedEmail was already coalesced above.
+  const clientIdRaw = f["Client ID"] ?? f["Client ID*"];
+  const clientIdStr = clientIdRaw !== undefined && clientIdRaw !== null ? String(clientIdRaw) : undefined;
   return {
     id: student.id,
     fullName: (f["Full Name"] as string) || "",
-    email: (f["Best Email"] as string) || "",
-    clientId: (f["Client ID"] as string) || undefined,
-    programTier: (f["Program Tier Purchased"] as string) || undefined,
+    email: resolvedEmail,
+    clientId: clientIdStr,
+    programTier:
+      (f["Program Tier Purchased"] as string) ||
+      (f["Membership Level (Text)"] as string) ||
+      (f["Membership Level"] as string) ||
+      undefined,
     salesRep: (f["Sales Rep"] as string) || undefined,
-    createdAt: (f["Create Date"] as string) || undefined,
-    lastUpdatedAt: (f["Last Modified Time (All Fields)"] as string) || undefined,
+    createdAt: createdAtIso,
+    lastUpdatedAt:
+      (f["Last Modified Time (All Fields)"] as string) ||
+      (f["Wins Last Updated"] as string) ||
+      undefined,
     steps,
     overallStatus,
     currentStepIndex,
@@ -550,48 +615,49 @@ export function derivePipeline(
 }
 
 /**
- * Fetch the full pipeline view — all student onboarding leads joined
- * with their error records.
+ * Fetch the full pipeline view — every Client joined with their error rows.
+ *
+ * Source of truth is the Clients table (`tblwDucKYAsPDVBA2`). Errors come
+ * from the Onboarding Errors table and are joined by lowercased email
+ * (Clients don't carry a Close `lead_*` id).
  */
 export async function fetchPipeline(options?: {
   max?: number;
   cacheTtl?: number;
 }): Promise<LeadPipeline[]> {
-  // No hard cap by default — we paginate Airtable fully and return every
-  // unarchived lead. Pass max explicitly only for dev/debug.
   const max = options?.max;
   const cacheTtl = options?.cacheTtl;
 
   const [students, errors] = await Promise.all([
-    fetchTable("studentOnboarding", {
+    fetchTable("clients", {
       fields: [
+        // Identity (only fields that ACTUALLY exist on Clients table tblwDucKYAsPDVBA2)
         "Full Name",
-        "Best Email",
-        "Client ID",
-        "Program Tier Purchased",
+        "Personal Email",
+        "Business Email",
+        "Phone Number",
+        "Client ID*",
+        "Hubspot Deal ID",
         "Sales Rep",
-        "Create Date",
-        "Last Modified Time (All Fields)",
-        "Was Email sent",
-        "MN Invite Granted",
-        "MN Invite ID",
-        "MN Verified",
-        "MN Verified At",
-        "Intercom Synced At",
-        "Intercome Failed?",
-        "Intercom Verified",
-        "Intercom Verified At",
-        "VendHub Status",
-        "VendHub Verified At",
-        "VendHub Organization",
-        "VendHub User ID",
-        "Skool Granted",
-        "Clients",
-        "Archived",
+        "Date Added",
+        // Membership / pipeline-tier
+        "Membership Level",
+        "Membership Level (Text)",
+        "Status",
+        "Program Stages",
+        // Email-validation downstream signals
+        "Sent Email File",
+        "Welcome Email Sent: ", // trailing space is intentional — that's the actual field name
+        // Mighty Networks / Skool
+        "On Skool",
+        "Skool Join Date",
+        // VendHub
+        "On Vendstack",
+        "Invited to VendHUB",
+        "Has Machine",
+        "Machines Placed",
       ],
-      // No archive filter — we show every lead regardless of the archive flag,
-      // so the dashboard is the authoritative view of Airtable state.
-      sort: [{ field: "Create Date", direction: "desc" }],
+      sort: [{ field: "Date Added", direction: "desc" }],
       ...(max !== undefined ? { maxRecords: max } : {}),
       cacheTtl,
     }),
@@ -627,13 +693,24 @@ export async function fetchPipeline(options?: {
   }
 
   return students.map((s) => {
-    const cid = (s.fields["Client ID"] as string) || "";
-    const email = ((s.fields["Best Email"] as string) || "").toLowerCase().trim();
+    const f = s.fields as Record<string, unknown>;
+    // Resolve the Client's email from any of the four email columns.
+    const email = ((
+      (f["Personal Email"] as string) ||
+      (f["Email"] as string) ||
+      (f["Business Email"] as string) ||
+      (f["vendhub_email"] as string) ||
+      ""
+    ) || "").toLowerCase().trim();
+    // Clients carry a `Hubspot Deal ID` not a Close `lead_*`, so try both
+    // when looking up errors. Most matches will come through email.
+    const hubspotDealId = String(f["Hubspot Deal ID"] ?? "");
+    const clientNum = String((f["Client ID*"] ?? f["Client ID"]) ?? "");
     const related = [
-      ...(errorsByLeadId.get(cid) || []),
       ...(email ? errorsByEmail.get(email) || [] : []),
+      ...(hubspotDealId && hubspotDealId !== "0" ? errorsByLeadId.get(hubspotDealId) || [] : []),
+      ...(clientNum ? errorsByLeadId.get(clientNum) || [] : []),
     ];
-    // Deduplicate by record id
     const seen = new Set<string>();
     const dedup = related.filter((r) => {
       if (seen.has(r.id)) return false;

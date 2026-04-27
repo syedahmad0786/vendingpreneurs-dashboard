@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     // Fetch the single Airtable record (direct GET is faster + avoids the
     // list cache issue around sub-second freshness).
     if (body.airtableId) {
-      const tblId = resolveTableId("studentOnboarding");
+      const tblId = resolveTableId("clients");
       const url = `https://api.airtable.com/v0/${AIRTABLE_BASE}/${tblId}/${body.airtableId}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` }, cache: "no-store" });
       if (!res.ok) {
@@ -49,9 +49,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.email) {
-      const safe = body.email.replace(/'/g, "\\'");
-      const rows = await fetchTable("studentOnboarding", {
-        filterByFormula: `LOWER({Best Email})='${safe.toLowerCase()}'`,
+      const safe = body.email.replace(/'/g, "\\'").toLowerCase();
+      // Look up across all four email fields the Clients table uses.
+      const rows = await fetchTable("clients", {
+        filterByFormula:
+          `OR(LOWER({Personal Email})='${safe}',LOWER({Business Email})='${safe}',LOWER({Email})='${safe}',LOWER({vendhub_email})='${safe}')`,
         cacheTtl: 0,
       });
       if (rows.length === 0) {

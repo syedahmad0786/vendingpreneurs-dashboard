@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       );
     }
     invalidateTableCache("onboardingErrors");
-    invalidateTableCache("studentOnboarding");
+    invalidateTableCache("clients");
     return NextResponse.json({ success: true, resolved: 1, ids: [body.errorRecordId] });
   }
 
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
     }
 
     invalidateTableCache("onboardingErrors");
-    invalidateTableCache("studentOnboarding");
+    invalidateTableCache("clients");
 
     return NextResponse.json({
       success: failures.length === 0,

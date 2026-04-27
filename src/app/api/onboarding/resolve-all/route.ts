@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     }
 
     invalidateTableCache("onboardingErrors");
-    invalidateTableCache("studentOnboarding");
+    invalidateTableCache("clients");
 
     return NextResponse.json({
       success: true,

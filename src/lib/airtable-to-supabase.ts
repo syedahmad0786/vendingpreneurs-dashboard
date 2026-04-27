@@ -62,18 +62,33 @@ function buildRowsFromAirtable(records: AirtableRecord[]): {
   let skipped = 0;
   for (const r of records) {
     const f = r.fields as Record<string, unknown>;
-    const email = ((f["Best Email"] as string) || "").trim().toLowerCase();
+    // Coalesce email across the four columns the Clients table uses.
+    // Falls back to "Best Email" for any leftover Student Onboarding rows.
+    const email = ((
+      (f["Personal Email"] as string) ||
+      (f["Email"] as string) ||
+      (f["Business Email"] as string) ||
+      (f["vendhub_email"] as string) ||
+      (f["Best Email"] as string) ||
+      ""
+    ) || "").trim().toLowerCase();
     if (!email) {
       skipped++;
       continue;
     }
-    const cid = ((f["Client ID"] as string) || "");
+    const cidRaw = (f["Client ID"] ?? f["Client ID*"]);
+    const cidStr = cidRaw !== undefined && cidRaw !== null ? String(cidRaw) : "";
     const row = {
       email,
       full_name: (f["Full Name"] as string) || null,
-      program_tier: (f["Program Tier Purchased"] as string) || null,
+      program_tier:
+        (f["Program Tier Purchased"] as string) ||
+        (f["Membership Level (Text)"] as string) ||
+        (f["Membership Level"] as string) ||
+        null,
       sales_rep: (f["Sales Rep"] as string) || null,
-      close_lead_id: cid.startsWith("lead_") ? cid : null,
+      // Only the legacy Student Onboarding shape carries Close lead_* ids.
+      close_lead_id: cidStr.startsWith("lead_") ? cidStr : null,
       airtable_id: r.id,
       mn_invite_id: f["MN Invite ID"] ? String(f["MN Invite ID"]) : null,
       vendhub_user_id: (f["VendHub User ID"] as string) || null,
@@ -112,38 +127,58 @@ function presenceRowsFor(
     failed_at: extras.failed_at ?? null,
   });
 
-  // Airtable: member unless archived
+  // Airtable presence — the row exists, so they're tracked.
   out.push(
     make("airtable", truthy(f["Archived"]) ? "missing" : "member", {
       external_id: airtableId,
-      joined_at: (f["Create Date"] as string) || null,
+      joined_at: (f["Date Added"] as string) || (f["Create Date"] as string) || null,
     })
   );
 
-  // Close
+  // Close — populate when the legacy lead_* prefix is present, otherwise
+  // treat membership as implied by being a paying client (the Clients
+  // table only contains closed deals).
   const cid = (f["Client ID"] as string) || "";
+  const hubspotDealId = (f["Hubspot Deal ID"] as number | undefined) || 0;
   if (cid.startsWith("lead_")) {
     out.push(make("close", "member", { external_id: cid }));
+  } else if (hubspotDealId && Number(hubspotDealId) > 0) {
+    out.push(make("close", "member", { external_id: `hs_${hubspotDealId}` }));
+  } else {
+    out.push(make("close", "member", { external_id: airtableId }));
   }
 
-  // Mighty
+  // Mighty — Clients table additionally has On Skool / Skool Join Date.
   const mnVerified = ((f["MN Verified"] as string) || "").toLowerCase();
+  const onSkool = ((f["On Skool"] as string) || "").toLowerCase() === "yes";
+  const skoolJoinDate = (f["Skool Join Date"] as string) || null;
   let mnStatus: PresenceRow["status"] | null = null;
-  if (["member", "joined", "active"].includes(mnVerified)) mnStatus = "member";
-  else if (truthy(f["MN Invite Granted"]) || truthy(f["MN Invite ID"])) mnStatus = "invited";
+  let mnJoinedAt: string | null = null;
+  if (["member", "joined", "active"].includes(mnVerified)) {
+    mnStatus = "member";
+    mnJoinedAt = (f["MN Verified At"] as string) || null;
+  } else if (onSkool || skoolJoinDate) {
+    mnStatus = "member";
+    mnJoinedAt = skoolJoinDate;
+  } else if (truthy(f["MN Invite Granted"]) || truthy(f["MN Invite ID"]) || truthy(f["Skool Granted"])) {
+    mnStatus = "invited";
+  }
   if (mnStatus) {
     out.push(
       make("mighty", mnStatus, {
         external_id: f["MN Invite ID"] ? String(f["MN Invite ID"]) : null,
+        joined_at: mnJoinedAt,
       })
     );
   }
 
-  // Intercom
+  // Intercom — Clients table uses "Intercom Synced" (text) instead of timestamp.
   const icVerified = (f["Intercom Verified"] as string) || "";
+  const icSyncedTxt = isTruthy(f["Intercom Synced"]);
+  const icSyncedAt = isTruthy(f["Intercom Synced At"]);
   let icStatus: PresenceRow["status"] | null = null;
   if (icVerified === "Verified") icStatus = "member";
-  else if (truthy(f["Intercom Synced At"])) icStatus = "invited";
+  else if (icSyncedAt || icSyncedTxt) icStatus = "invited";
   else if (truthy(f["Intercome Failed?"])) icStatus = "failed";
   if (icStatus) {
     out.push(
@@ -153,7 +188,8 @@ function presenceRowsFor(
     );
   }
 
-  // VendHub
+  // VendHub — Clients table uses On Vendstack / in_vendhub / Has Machine
+  // formula instead of the Status enum.
   const vh = ((f["VendHub Status"] as string) || "").toUpperCase();
   const vhMap: Record<string, PresenceRow["status"]> = {
     ACTIVE: "member",
@@ -161,14 +197,22 @@ function presenceRowsFor(
     CANCELED: "failed",
     "NOT FOUND": "missing",
   };
+  const onVendstack = ((f["On Vendstack"] as string) || "").toLowerCase() === "yes";
+  const inVendhubFlag = truthy(f["in_vendhub"]);
+  const hasMachine = ((f["Has Machine"] as string) || "").toLowerCase() === "yes";
+  const invitedToVH = truthy(f["Invited to VendHUB"]) || truthy(f["invited_to_vendhub"]);
   if (vhMap[vh]) {
-    out.push(
-      make("vendhub", vhMap[vh], {
-        external_id: (f["VendHub User ID"] as string) || null,
-      })
-    );
+    out.push(make("vendhub", vhMap[vh], { external_id: (f["VendHub User ID"] as string) || null }));
+  } else if (onVendstack || inVendhubFlag || hasMachine) {
+    out.push(make("vendhub", "member", { external_id: (f["VendHub User ID"] as string) || null }));
+  } else if (invitedToVH) {
+    out.push(make("vendhub", "invited", { external_id: null }));
   }
   return out;
+}
+
+function isTruthy(v: unknown): boolean {
+  return truthy(v);
 }
 
 async function supaBulkUpsert(

@@ -84,14 +84,14 @@ export async function POST(req: NextRequest) {
   // Try the per-step webhook first, fall back to the legacy generic webhook.
   const result = await triggerStepResubmit(body.step, payload);
   if (result.success) {
-    invalidateTableCache("studentOnboarding");
+    invalidateTableCache("clients");
     invalidateTableCache("onboardingErrors");
     return NextResponse.json(result, { status: 200 });
   }
 
   const fallback = await triggerResubmit(payload);
   if (fallback.success) {
-    invalidateTableCache("studentOnboarding");
+    invalidateTableCache("clients");
     invalidateTableCache("onboardingErrors");
     return NextResponse.json(
       {
