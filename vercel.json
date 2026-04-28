@@ -5,6 +5,14 @@
     {
       "path": "/api/verify/mighty-networks",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/verify/intercom",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/verify/close",
+      "schedule": "0 5 * * *"
     }
   ]
 }

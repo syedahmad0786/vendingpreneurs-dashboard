@@ -384,16 +384,25 @@ export function derivePipeline(
         };
       }
 
-      // Confirmed "not in MN" by the API. If they were invited, waiting on
-      // the customer to accept. Otherwise it's an open MN error / not yet
-      // invited.
+      // Confirmed "not in MN" by the API.
+      // 14-day grace window: brand-new active clients haven't had time to
+      // accept their invite yet, so don't classify as error. After 14 days
+      // it becomes a real onboarding gap (system never invited OR customer
+      // ghosted) and gets escalated to error.
+      const MN_GRACE_HOURS = 14 * 24;
       if (onMN === "not imported" || onMN === "no" || onMN === "waiting") {
-        if (onMN === "waiting" || isTruthy(granted) || isTruthy(mnInviteId)) {
+        const explicitlyInvited = onMN === "waiting" || isTruthy(granted) || isTruthy(mnInviteId);
+        const withinGrace = ageHours < MN_GRACE_HOURS;
+        if (explicitlyInvited || withinGrace) {
           return {
             ...base,
             status: "waiting_for_customer",
             waitingOnCustomer: true,
-            detail: mnInviteId ? `Invite sent · waiting to join (#${mnInviteId})` : "Invite sent · waiting to join",
+            detail: mnInviteId
+              ? `Invite sent · waiting to join (#${mnInviteId})`
+              : explicitlyInvited
+                ? "Invite sent · waiting to join"
+                : `New signup · ${Math.max(1, Math.round(ageHours))}h since added`,
           };
         }
         return {
