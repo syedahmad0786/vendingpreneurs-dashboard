@@ -26,6 +26,7 @@ export function TopBar({
   const items: [string, string][] = [
     ["pipeline", "Pipeline"],
     ["operators", "Clients"],
+    ["new-errors", "New errors"],
     ["errors", "Errors & retries"],
     ["cross-platform", "Cross-platform"],
     ["analytics", "Analytics"],
@@ -418,18 +419,25 @@ export type SortKey =
   | "status"       // errors → waiting → in flight → live
   | "owner";       // alphabetical by sales rep
 
+export type BoardView = "kanban" | "table";
+
 export function BoardToolbar({
   filter,
   setFilter,
   counts,
   sort,
   setSort,
+  view,
+  setView,
 }: {
   filter: string;
   setFilter: (v: string) => void;
   counts: { total: number; inFlight: number; stuck: number; live: number; waiting: number };
   sort: SortKey;
   setSort: (v: SortKey) => void;
+  /** Currently-active view layout. Kanban (default) or table. */
+  view?: BoardView;
+  setView?: (v: BoardView) => void;
 }) {
   return (
     <div className="board-toolbar">
@@ -457,6 +465,54 @@ export function BoardToolbar({
         <Chip label="Live" count={counts.live} active={filter === "done"} onClick={() => setFilter("done")} />
       </div>
       <div className="board-filters" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {/* View layout switcher: Kanban ↔ Table */}
+        {setView && (
+          <div
+            role="tablist"
+            aria-label="Board view"
+            style={{
+              display: "inline-flex",
+              border: "1px solid var(--ma-line)",
+              borderRadius: 6,
+              overflow: "hidden",
+              marginRight: 8,
+            }}
+          >
+            <button
+              role="tab"
+              aria-selected={view === "kanban"}
+              onClick={() => setView("kanban")}
+              style={{
+                padding: "5px 10px",
+                fontSize: 12,
+                background: view === "kanban" ? "var(--ma-gold)" : "var(--ma-surface)",
+                color: view === "kanban" ? "#000" : "var(--fg-2)",
+                border: 0,
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Kanban
+            </button>
+            <button
+              role="tab"
+              aria-selected={view === "table"}
+              onClick={() => setView("table")}
+              style={{
+                padding: "5px 10px",
+                fontSize: 12,
+                background: view === "table" ? "var(--ma-gold)" : "var(--ma-surface)",
+                color: view === "table" ? "#000" : "var(--fg-2)",
+                border: 0,
+                borderLeft: "1px solid var(--ma-line)",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Table
+            </button>
+          </div>
+        )}
         <Icon.Sort size={13} />
         <select
           value={sort}

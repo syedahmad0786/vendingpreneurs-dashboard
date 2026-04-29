@@ -13,11 +13,14 @@ import {
   ToastStack,
   type Toast,
   type SortKey,
+  type BoardView,
 } from "@/components/design/DashboardShell";
 import { PipelineBoard } from "@/components/design/Board";
 import { LeadDrawer } from "@/components/design/LeadDrawer";
 import { OperatorsView, ErrorsView, AnalyticsView } from "@/components/design/Views";
 import { CrossPlatformView } from "@/components/design/CrossPlatformView";
+import { LeadsTableView } from "@/components/design/LeadsTableView";
+import { NewErrorsView } from "@/components/design/NewErrorsView";
 
 interface PipelineResponse {
   leads: LeadPipeline[];
@@ -45,7 +48,9 @@ interface PipelineResponse {
 const POLL_INTERVAL_MS = 8_000;
 
 export default function OnboardingPipelinePage() {
-  const [activeNav, setActiveNav] = useState<"pipeline" | "operators" | "errors" | "analytics" | "cross-platform">("pipeline");
+  const [activeNav, setActiveNav] = useState<"pipeline" | "operators" | "errors" | "analytics" | "cross-platform" | "new-errors">("pipeline");
+  /** Pipeline tab can render either the Kanban board (default) or a flat table view. */
+  const [boardView, setBoardView] = useState<BoardView>("kanban");
   const [dark, setDark] = useState(false);
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState("all");
@@ -572,7 +577,15 @@ export default function OnboardingPipelinePage() {
             onDrill={handleDrill}
             updatedAt={data?.generatedAt}
           />
-          <BoardToolbar filter={filter} setFilter={setFilter} counts={counts} sort={sort} setSort={setSort} />
+          <BoardToolbar
+            filter={filter}
+            setFilter={setFilter}
+            counts={counts}
+            sort={sort}
+            setSort={setSort}
+            view={boardView}
+            setView={setBoardView}
+          />
           {loading && !data ? (
             <div className="board">
               {DESIGN_STAGES.map((s) => (
@@ -599,6 +612,8 @@ export default function OnboardingPipelinePage() {
                 </div>
               ))}
             </div>
+          ) : boardView === "table" ? (
+            <LeadsTableView leads={filtered} stages={DESIGN_STAGES} onSelect={setSelected} />
           ) : (
             <PipelineBoard
               stages={DESIGN_STAGES}
@@ -608,6 +623,20 @@ export default function OnboardingPipelinePage() {
               retryingKeys={retryingKeys}
             />
           )}
+        </main>
+      )}
+
+      {activeNav === "new-errors" && (
+        <main className="main">
+          <NewErrorsView
+            leads={adaptedForStats}
+            stages={DESIGN_STAGES}
+            onSelect={setSelected}
+            onToast={(t) =>
+              setToasts((ts) => [...ts, { ...t, id: Date.now() + Math.random() }])
+            }
+            onAfterChange={() => load(true)}
+          />
         </main>
       )}
 
