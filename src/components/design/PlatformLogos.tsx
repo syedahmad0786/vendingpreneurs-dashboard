@@ -1,10 +1,16 @@
 "use client";
 /**
- * Platform logo components — inline SVG with each platform's real brand colors.
- * Ported from the Claude Design bundle verbatim.
+ * Platform logo components.
+ *
+ * Renders the official brand logos from /public/brand/*.svg|.avif. Each logo
+ * sits in a rounded badge with the platform's accent background so the icon
+ * looks consistent across the dashboard at any size. Use the `bare` prop for
+ * a transparent, no-background variant (handy for the Cross-platform tab's
+ * column headers).
  */
 
 import type { ComponentType } from "react";
+import Image from "next/image";
 
 export type PlatformId =
   | "close"
@@ -17,73 +23,92 @@ export type PlatformId =
 interface LogoProps {
   size?: number;
   mono?: boolean;
+  /** When true, render the logo on a transparent background with no badge. */
+  bare?: boolean;
+}
+
+interface LogoSpec {
+  src: string;
+  /** Brand-accent background colour for the rounded badge. */
+  bg: string;
+  /** Padding ratio inside the badge — some logos look small, some big. */
+  pad: number;
+  alt: string;
+}
+
+const SPECS: Record<PlatformId, LogoSpec> = {
+  close:    { src: "/brand/close.svg",    bg: "#26be75", pad: 0.18, alt: "Close CRM" },
+  email:    { src: "/brand/email.svg",    bg: "#ffffff", pad: 0.10, alt: "Email" },
+  airtable: { src: "/brand/airtable.svg", bg: "#ffffff", pad: 0.08, alt: "Airtable" },
+  mighty:   { src: "/brand/mighty.avif",  bg: "#ffffff", pad: 0.06, alt: "Mighty Networks" },
+  intercom: { src: "/brand/intercom.svg", bg: "#1f8ded", pad: 0.16, alt: "Intercom" },
+  vendhub:  { src: "/brand/vendhub.svg",  bg: "#ffffff", pad: 0.08, alt: "VendHub" },
+};
+
+function makeLogo(id: PlatformId): ComponentType<LogoProps> {
+  const Logo: ComponentType<LogoProps> = ({ size = 20, mono = false, bare = false }) => {
+    const spec = SPECS[id];
+    const inner = Math.max(8, Math.round(size * (1 - spec.pad * 2)));
+    if (bare) {
+      return (
+        <Image
+          src={spec.src}
+          alt={spec.alt}
+          width={size}
+          height={size}
+          style={{
+            width: size,
+            height: size,
+            objectFit: "contain",
+            display: "inline-block",
+            filter: mono ? "grayscale(1) brightness(0.6)" : undefined,
+          }}
+        />
+      );
+    }
+    const radius = Math.max(4, Math.round(size * 0.22));
+    const bg = mono ? "#0e0e0e" : spec.bg;
+    return (
+      <span
+        aria-label={spec.alt}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: size,
+          height: size,
+          borderRadius: radius,
+          background: bg,
+          // Subtle hairline border keeps white-bg logos visible on light surfaces.
+          boxShadow: bg === "#ffffff" ? "inset 0 0 0 1px rgba(0,0,0,0.06)" : undefined,
+          flexShrink: 0,
+        }}
+      >
+        <Image
+          src={spec.src}
+          alt={spec.alt}
+          width={inner}
+          height={inner}
+          style={{
+            width: inner,
+            height: inner,
+            objectFit: "contain",
+            display: "block",
+            filter: mono ? "grayscale(1) brightness(0.85)" : undefined,
+          }}
+        />
+      </span>
+    );
+  };
+  Logo.displayName = `PlatformLogo(${id})`;
+  return Logo;
 }
 
 export const PlatformLogos: Record<PlatformId, ComponentType<LogoProps>> = {
-  close: ({ size = 20, mono = false }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
-      <rect width="32" height="32" rx="6" fill={mono ? "#000" : "#26be75"} />
-      <path d="M22 11.5a6 6 0 1 0 0 9" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" fill="none" />
-    </svg>
-  ),
-
-  email: ({ size = 20, mono = false }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
-      <rect width="32" height="32" rx="6" fill={mono ? "#000" : "#3a6df0"} />
-      <rect x="7" y="10" width="18" height="13" rx="2" stroke="#fff" strokeWidth="1.8" fill="none" />
-      <path d="M8 11.5l8 6 8-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="23" cy="21" r="4" fill="#fff" />
-      <path d="M21 21l1.5 1.5L25 20" stroke="#3a6df0" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
-  ),
-
-  airtable: ({ size = 20, mono = false }) =>
-    mono ? (
-      <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-        <rect width="32" height="32" rx="6" fill="#000" />
-        <path d="M6 12l10-4 10 4-10 4z" fill="#fff" />
-        <path d="M6 14v8l10 4v-8z" fill="#fff" opacity="0.75" />
-        <path d="M26 14v8l-7 2.8v-7z" fill="#fff" opacity="0.55" />
-      </svg>
-    ) : (
-      <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-        <rect width="32" height="32" rx="6" fill="#fff" />
-        <path d="M6 12l10-4 10 4-10 4z" fill="#fcb400" />
-        <path d="M6 14v8l10 4v-8z" fill="#18bfff" />
-        <path d="M26 14v8l-7 2.8v-7z" fill="#f82b60" />
-        <path d="M22 21.5l2-0.8v2.6l-2 0.8z" fill="#fff" />
-      </svg>
-    ),
-
-  mighty: ({ size = 20, mono = false }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="6" fill={mono ? "#000" : "#6e3eff"} />
-      <path d="M7 23V10l5 7 4-5 4 5 5-7v13" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
-  ),
-
-  intercom: ({ size = 20, mono = false }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="6" fill={mono ? "#000" : "#1f8ded"} />
-      <rect x="7" y="8" width="18" height="16" rx="3" fill="#fff" />
-      <path d="M11 24v3l4-3" fill="#fff" />
-      <line x1="11" y1="12" x2="11" y2="18" stroke="#1f8ded" strokeWidth="1.8" strokeLinecap="round" />
-      <line x1="15" y1="11" x2="15" y2="19" stroke="#1f8ded" strokeWidth="1.8" strokeLinecap="round" />
-      <line x1="19" y1="11" x2="19" y2="19" stroke="#1f8ded" strokeWidth="1.8" strokeLinecap="round" />
-      <line x1="23" y1="12" x2="23" y2="18" stroke="#1f8ded" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  ),
-
-  vendhub: ({ size = 20, mono = false }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="6" fill={mono ? "#000" : "#e8552a"} />
-      <rect x="9" y="7" width="14" height="18" rx="2" stroke="#fff" strokeWidth="1.6" fill="none" />
-      <line x1="9" y1="14" x2="23" y2="14" stroke="#fff" strokeWidth="1.4" />
-      <line x1="9" y1="19" x2="23" y2="19" stroke="#fff" strokeWidth="1.4" />
-      <circle cx="13" cy="11" r="1" fill="#fff" />
-      <circle cx="16.5" cy="11" r="1" fill="#fff" />
-      <circle cx="20" cy="11" r="1" fill="#fff" />
-      <rect x="18" y="21" width="4" height="2" fill="#fff" rx="0.5" />
-    </svg>
-  ),
+  close:    makeLogo("close"),
+  email:    makeLogo("email"),
+  airtable: makeLogo("airtable"),
+  mighty:   makeLogo("mighty"),
+  intercom: makeLogo("intercom"),
+  vendhub:  makeLogo("vendhub"),
 };
