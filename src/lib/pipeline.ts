@@ -812,7 +812,11 @@ export async function fetchPipeline(options?: {
     }
   }
 
-  return students.map((s) => {
+  // Track which error rows we've matched to a Clients row so we can
+  // surface the rest as ghost-leads further down.
+  const matchedErrorIds = new Set<string>();
+
+  const fromClients = students.map((s) => {
     const f = s.fields as Record<string, unknown>;
     // Resolve the Client's email from any of the four email columns.
     const email = ((
@@ -837,6 +841,106 @@ export async function fetchPipeline(options?: {
       seen.add(r.id);
       return true;
     });
+    for (const r of dedup) matchedErrorIds.add(r.id);
     return derivePipeline(s, dedup);
   });
+
+  // Ghost-leads: errors in tblaQ6fpHGhRs56sH that have no matching Clients
+  // row. These are pre-Client failures (e.g. Close → Airtable handoff broke,
+  // so a Client row was never created). The team needs to see them.
+  const ghosts = buildGhostLeadsFromErrors(errors, matchedErrorIds);
+  return [...fromClients, ...ghosts];
+}
+
+/**
+ * Build synthetic LeadPipeline entries for open Onboarding Errors rows that
+ * never made it into the Clients table. Each one shows up on the dashboard
+ * board / errors tab as a red card with the Error Type prominently displayed.
+ */
+function buildGhostLeadsFromErrors(
+  errors: AirtableRecord[],
+  matchedIds: Set<string>
+): LeadPipeline[] {
+  // Group unmatched open errors by lowercased email (or by error record id
+  // when no email is present). One ghost lead per email — multiple errors
+  // for the same email collapse to a single card surfacing the latest.
+  type ErrGroup = { email: string; rows: AirtableRecord[] };
+  const groups = new Map<string, ErrGroup>();
+  for (const e of errors) {
+    if (matchedIds.has(e.id)) continue;
+    const status = (e.fields["Status"] as string) || "";
+    if (status !== "New" && status !== "Investigating") continue;
+    const email = ((e.fields["Email"] as string) || "").toLowerCase().trim();
+    const key = email || `__no_email__:${e.id}`;
+    const g = groups.get(key) || { email, rows: [] };
+    g.rows.push(e);
+    groups.set(key, g);
+  }
+
+  const ghosts: LeadPipeline[] = [];
+  for (const [, g] of groups) {
+    // Sort newest first; classifier uses the most recent error's metadata.
+    const sortedRows = g.rows
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date((b.fields["Timestamp"] as string) || 0).getTime() -
+          new Date((a.fields["Timestamp"] as string) || 0).getTime()
+      );
+    const latest = sortedRows[0];
+    const lf = latest.fields as Record<string, unknown>;
+    const errType = (lf["Error Type"] as string) || "";
+    const errStep = ERROR_TYPE_TO_STEP[errType] || "close_crm";
+    const errMeta = buildErrorMeta(errStep, latest);
+    const errTimestamp = (lf["Timestamp"] as string) || undefined;
+
+    // Build the 6-stage timeline. The errored stage shows the actual error,
+    // earlier stages are pending (we never got past this point), later
+    // stages are pending too.
+    const errStepIdx = STEP_ORDER.indexOf(errStep);
+    const steps: StepState[] = STEP_ORDER.map((id, idx) => {
+      const label = STEP_LABELS[id];
+      if (idx === errStepIdx) {
+        return {
+          id,
+          label,
+          status: "error",
+          errorMessage: errMeta.message,
+          error: errMeta,
+          errorRecordId: latest.id,
+        };
+      }
+      return { id, label, status: "pending" };
+    });
+
+    const leadId = (lf["Lead ID"] as string) || "";
+    const fullName = (lf["Lead Name"] as string) || g.email || "(unknown lead)";
+    ghosts.push({
+      id: latest.id, // use error record id as the dashboard lead id
+      fullName,
+      email: g.email,
+      clientId: leadId.startsWith("lead_") ? leadId : undefined,
+      programTier: undefined,
+      salesRep: undefined,
+      createdAt: errTimestamp,
+      lastUpdatedAt: errTimestamp,
+      steps,
+      overallStatus: "error",
+      currentStepIndex: errStepIdx,
+      mnInviteId: undefined,
+      mnMemberId: undefined,
+      intercomContactId: undefined,
+      closeLeadId: leadId.startsWith("lead_") ? leadId : undefined,
+      vendHubOrganization: undefined,
+      vendHubUserId: undefined,
+      airtableRecordId: latest.id,
+      // Treat ghost errors as new_waiting so they show up under the Active
+      // filter — they're brand-new failures the team needs to fix.
+      activeStatus: "new_waiting",
+      waitingOnMN: false,
+      waitingOnIntercom: false,
+      waitingOnVendhub: false,
+    });
+  }
+  return ghosts;
 }
