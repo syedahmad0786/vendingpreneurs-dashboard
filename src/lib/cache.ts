@@ -9,9 +9,10 @@ interface CacheEntry<T> {
 }
 
 // Short TTL so the dashboard feels near-real-time. Each Airtable read is
-// ~300ms, which is fine for the ~20s poll interval. invalidateTableCache
-// still clears immediately after writes.
-const DEFAULT_TTL_MS = 15 * 1000; // 15 seconds
+// ~300ms, which is fine for the 8s poll interval. invalidateTableCache
+// still clears immediately on writes — and any external system can hit
+// /api/onboarding/notify to invalidate caches between polls.
+const DEFAULT_TTL_MS = 8 * 1000; // 8 seconds — matches dashboard poll interval
 
 class MemoryCache {
   private store: Map<string, CacheEntry<unknown>> = new Map();

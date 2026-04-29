@@ -37,7 +37,12 @@ interface PipelineResponse {
   generatedAt: string;
 }
 
-const POLL_INTERVAL_MS = 20_000;
+// Dashboard polls the pipeline endpoint every 8s so changes from n8n
+// workflows (error logged, error resolved, verifier finished) appear
+// within ~10s of happening. External systems can ping
+// /api/onboarding/notify to invalidate caches sooner — the endpoint
+// busts the in-memory cache so the next poll fetches fresh data.
+const POLL_INTERVAL_MS = 8_000;
 
 export default function OnboardingPipelinePage() {
   const [activeNav, setActiveNav] = useState<"pipeline" | "operators" | "errors" | "analytics" | "cross-platform">("pipeline");
