@@ -224,9 +224,20 @@ function presenceRowsFor(
   const inVendhubFlag = truthy(f["in_vendhub"]);
   const hasMachine = ((f["Has Machine"] as string) || "").toLowerCase() === "yes";
   const invitedToVH = truthy(f["Invited to VendHUB"]) || truthy(f["invited_to_vendhub"]);
+  const machinesPlaced = Number(f["Machines Placed"]) || 0;
+  const participation = Number(f["Vendhub Participation"]) || 0;
+  const dataSyncLinks = f["VendHub Data Sync"];
+  const hasDataSyncLink = Array.isArray(dataSyncLinks) && dataSyncLinks.length > 0;
   if (vhMap[vh]) {
     out.push(make("vendhub", vhMap[vh], { external_id: (f["VendHub User ID"] as string) || null }));
-  } else if (onVendstack || inVendhubFlag || hasMachine) {
+  } else if (
+    onVendstack ||
+    inVendhubFlag ||
+    hasMachine ||
+    machinesPlaced > 0 ||
+    participation > 0 ||
+    hasDataSyncLink
+  ) {
     out.push(make("vendhub", "member", { external_id: (f["VendHub User ID"] as string) || null }));
   } else if (invitedToVH) {
     out.push(make("vendhub", "invited", { external_id: null }));

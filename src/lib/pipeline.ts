@@ -567,20 +567,45 @@ export function derivePipeline(
       const vhStatus = ((f["VendHub Status"] as string) || "").toUpperCase();
       const org = (f["VendHub Organization"] as string) || undefined;
       const userId = (f["VendHub User ID"] as string) || undefined;
-      // Clients-table-only signals: On Vendstack=Yes / in_vendhub=true /
-      // Has Machine=Yes — any of these confirm the customer is set up on VendHub.
+      // Every signal Airtable carries that says "this customer is on VendHub":
+      //  - `On Vendstack` (singleSelect Yes/No)  → manually flipped by team
+      //  - `in_vendhub`   (checkbox)             → set by Google Sheet sync flow
+      //  - `Has Machine`  (formula Yes/No)       → derived from Machines Placed
+      //  - `Machines Placed` / `Total Number of Machines` → numeric count
+      //  - `Vendhub Participation` (number)      → secondary integer flag
+      //  - `VendHub Data Sync` (linked records)  → at least one matching row in the
+      //                                            VendHub data-sync table = on VendHub
+      //  - "Should have access to App?" lookup   → from data-sync table
       const onVendstack = ((f["On Vendstack"] as string) || "").toLowerCase() === "yes";
       const inVendhub = isTruthy(f["in_vendhub"]);
       const hasMachine = ((f["Has Machine"] as string) || "").toLowerCase() === "yes";
       const invitedToVendhub = isTruthy(f["Invited to VendHUB"]) || isTruthy(f["invited_to_vendhub"]);
       const machinesPlaced = Number(f["Machines Placed"]) || Number(f["Total Number of Machines"]) || 0;
-      if (onVendstack || inVendhub || hasMachine || machinesPlaced > 0) {
+      const participation = Number(f["Vendhub Participation"]) || 0;
+      const dataSyncLinks = f["VendHub Data Sync"];
+      const hasDataSyncLink = Array.isArray(dataSyncLinks) && dataSyncLinks.length > 0;
+      const accessLookup = f["Should have access to App? (Number) (from VendHub Data Sync)"];
+      const hasAccessFlag = Array.isArray(accessLookup)
+        ? accessLookup.some((v) => Number(v) > 0 || v === true)
+        : Number(accessLookup) > 0;
+
+      if (
+        onVendstack ||
+        inVendhub ||
+        hasMachine ||
+        machinesPlaced > 0 ||
+        participation > 0 ||
+        hasDataSyncLink ||
+        hasAccessFlag
+      ) {
         return {
           ...base,
           status: "success",
           detail: machinesPlaced > 0
             ? `${machinesPlaced} machine${machinesPlaced === 1 ? "" : "s"} placed`
-            : "On VendHub",
+            : hasDataSyncLink
+              ? "On VendHub (data sync)"
+              : "On VendHub",
         };
       }
       if (invitedToVendhub) {
@@ -768,11 +793,21 @@ export async function fetchPipeline(options?: {
         "Intercom Contact ID",
         // Close Lead ID (legacy text field for deep-linking back to Close)
         "Close Lead ID",
-        // VendHub
+        // VendHub — read every signal Airtable carries so the classifier
+        // doesn't miss customers who are already on VendHub. The Google
+        // Sheet sync (n8n) populates VendHub Data Sync linked records
+        // and `in_vendhub`; the team manually flips `On Vendstack` when
+        // a customer is fully onboarded; `Has Machine` is a formula based
+        // on Machines Placed.
         "On Vendstack",
+        "in_vendhub",
         "Invited to VendHUB",
+        "invited_to_vendhub",
         "Has Machine",
         "Machines Placed",
+        "Vendhub Participation",
+        "VendHub Data Sync",
+        "Should have access to App? (Number) (from VendHub Data Sync)",
         // Active client lifecycle (used by the dashboard's Active filter)
         "⚙️ Active Client?",
         "Account Status",
