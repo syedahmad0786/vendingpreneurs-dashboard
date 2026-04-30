@@ -27,21 +27,15 @@ export function NewErrorsView({
   /** Called after a successful resubmit so the parent can refetch. */
   onAfterChange?: () => void;
 }) {
-  // Ghost leads = activeStatus="new_waiting" + status="error" + no platform IDs.
-  // These are the rows that exist only in the Onboarding Errors table — pre-Client
-  // failures that need to be retried through the full pipeline.
-  const ghosts = useMemo(
-    () =>
-      leads.filter(
-        (l) =>
-          l.status === "error" &&
-          l.activeStatus === "new_waiting" &&
-          !l._mnMemberId &&
-          !l._intercomContactId &&
-          !l._vendHubUserId
-      ),
+  // EVERY lead with an open error row (status="New" in the Onboarding Errors
+  // table) should appear here — both ghost leads (no Clients row) and active
+  // clients with a fresh error. Resubmitting fires the all-platforms n8n
+  // workflow either way.
+  const errored = useMemo(
+    () => leads.filter((l) => l.status === "error" && Boolean(l.statusError?.errorRecordId)),
     [leads]
   );
+  const ghosts = errored; // alias for downstream rendering — kept for code-history clarity
 
   const [busy, setBusy] = useState<Set<string>>(new Set());
 
@@ -86,11 +80,14 @@ export function NewErrorsView({
       <div className="view-head" style={{ marginBottom: 16 }}>
         <div>
           <span className="eyebrow eyebrow--gold">New onboarding errors</span>
-          <h2>{ghosts.length} pre-Client failures need attention</h2>
-          <p style={{ fontSize: 13, color: "var(--fg-3)", maxWidth: 640, marginTop: 4 }}>
-            These leads errored out before a Clients row was ever created (typically a Close → Airtable handoff
-            failure). Resubmit fires the same all-platforms n8n workflow that the Airtable
-            <strong> Resubmit Onboarding</strong> button triggers — and auto-resolves the error row on success.
+          <h2>{ghosts.length} open errors need attention</h2>
+          <p style={{ fontSize: 13, color: "var(--fg-3)", maxWidth: 720, marginTop: 4 }}>
+            Every lead with an open row in the Onboarding Errors table (Status =
+            <strong> New</strong> or <strong> Investigating</strong>) shows up here — both
+            ghost leads (no Clients row yet) and active clients with a fresh error.
+            <strong> Resubmit all platforms</strong> fires the same n8n workflow the Airtable
+            <strong> Resubmit Onboarding</strong> button uses — and auto-resolves the error
+            row on a successful response.
           </p>
         </div>
       </div>

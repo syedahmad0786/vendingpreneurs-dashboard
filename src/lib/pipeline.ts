@@ -227,14 +227,15 @@ export function derivePipeline(
   // Errors older than 14 days are treated as stale — they don't block the lead
   // and are ignored for Step Health counts (users can bulk-mark them Resolved
   // via "Clear all errors" in the dashboard).
-  const STALE_HOURS = 14 * 24;
+  // Older filter buckets stale errors past 14 days as auto-ignored.
+  // We DROPPED that — if a row is explicitly Status="New" or "Investigating"
+  // in the Onboarding Errors table it's intentional unfinished work and
+  // should always surface on the dashboard, regardless of age. The Errors
+  // tab has a Bulk Resolve button for clearing genuine backlog.
   const openErrors = errorsForLead
     .filter((r) => {
       const s = (r.fields["Status"] as string) || "";
-      if (s !== "New" && s !== "Investigating") return false;
-      const ts = r.fields["Timestamp"] as string | undefined;
-      if (ts && hoursSince(ts) > STALE_HOURS) return false;
-      return true;
+      return s === "New" || s === "Investigating";
     })
     .sort((a, b) => {
       const at = new Date((a.fields["Timestamp"] as string) || 0).getTime();
@@ -246,8 +247,13 @@ export function derivePipeline(
   const latestErrorByStep: Partial<Record<StepId, AirtableRecord>> = {};
   for (const err of openErrors) {
     const type = (err.fields["Error Type"] as string) || "";
-    const step = ERROR_TYPE_TO_STEP[type];
-    if (step && !latestErrorByStep[step]) latestErrorByStep[step] = err;
+    // When the Error Type doesn't match any known mapping (e.g. "Unknown"),
+    // attribute it to close_crm as the catch-all "something went wrong before
+    // we got into the pipeline" step. This guarantees every open error row
+    // surfaces on the dashboard with an actionable errorRecordId — instead
+    // of being silently swallowed because of a typo in Error Type.
+    const step = ERROR_TYPE_TO_STEP[type] || "close_crm";
+    if (!latestErrorByStep[step]) latestErrorByStep[step] = err;
   }
 
   // Clients table uses "Date Added" (createdTime field). Older Student
