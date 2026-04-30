@@ -21,6 +21,7 @@ import { OperatorsView, ErrorsView, AnalyticsView } from "@/components/design/Vi
 import { CrossPlatformView } from "@/components/design/CrossPlatformView";
 import { LeadsTableView } from "@/components/design/LeadsTableView";
 import { NewErrorsView } from "@/components/design/NewErrorsView";
+import { RealErrorsStrip } from "@/components/design/RealErrorsStrip";
 
 interface PipelineResponse {
   leads: LeadPipeline[];
@@ -576,6 +577,16 @@ export default function OnboardingPipelinePage() {
             leadLists={stageLeadLists}
             onDrill={handleDrill}
             updatedAt={data?.generatedAt}
+          />
+          {/* Real-errors strip — sits between the integrations rail and the
+              board so any open Onboarding Errors row is unmissable. Only the
+              "real" workflow failures appear here (not platform-missing
+              classifications); Resubmit fires the all-platforms n8n workflow. */}
+          <RealErrorsStrip
+            leads={adaptedForStats}
+            onSelect={setSelected}
+            onToast={(t) => setToasts((ts) => [...ts, { ...t, id: Date.now() + Math.random() }])}
+            onAfterChange={() => load(true)}
           />
           <BoardToolbar
             filter={filter}
