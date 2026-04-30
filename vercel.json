@@ -3,23 +3,23 @@
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/verify/mighty-networks",
-      "schedule": "0 4 * * *"
+      "path": "/api/verify/sweep",
+      "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/verify/intercom",
-      "schedule": "30 4 * * *"
-    },
-    {
-      "path": "/api/verify/close",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/airtable/refresh-webhooks",
+      "path": "/api/verify/sweep",
       "schedule": "0 6 * * *"
     },
     {
       "path": "/api/verify/sweep",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/verify/sweep",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/airtable/refresh-webhooks",
       "schedule": "30 6 * * *"
     }
   ]
