@@ -17,6 +17,10 @@
     {
       "path": "/api/airtable/refresh-webhooks",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/verify/sweep",
+      "schedule": "30 6 * * *"
     }
   ]
 }

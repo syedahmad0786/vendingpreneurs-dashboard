@@ -47,16 +47,33 @@ export async function POST(req: NextRequest) {
   invalidateTableCache("studentOnboarding");
   invalidateTableCache("onboardingErrors");
 
-  // If we know the email, fire-and-forget a single-lead Supabase resync
-  // so platform_presence reflects the change for that lead within ~1s.
-  // (Not awaited — we want this endpoint to return immediately so n8n
-  // workflows aren't slowed down.)
+  const baseUrl = req.nextUrl.origin;
+
+  // Fire-and-forget downstream work. None of these are awaited so the
+  // notify endpoint always returns in <100ms — the caller (Airtable
+  // webhook, n8n, etc.) doesn't wait on the platform sync.
   if (body.email) {
-    const baseUrl = req.nextUrl.origin;
+    // Per-email path: kick all three verifiers + Supabase resync in parallel.
+    // Within ~5-10s the newly-added lead has its MN / Intercom / Close
+    // state on Airtable and the dashboard reflects it on next poll.
+    fetch(`${baseUrl}/api/verify/sweep`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cron-secret": process.env.CRON_SECRET || "" },
+      body: JSON.stringify({ email: body.email }),
+    }).catch(() => undefined);
     fetch(`${baseUrl}/api/supabase/sync-lead`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: body.email }),
+    }).catch(() => undefined);
+  } else {
+    // No email known (typical for Airtable change webhooks). Sweep the
+    // newest 20 rows — catches the very latest signups added since the
+    // last cron without spending 24h waiting for the daily run.
+    fetch(`${baseUrl}/api/verify/sweep`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cron-secret": process.env.CRON_SECRET || "" },
+      body: JSON.stringify({ newestN: 20 }),
     }).catch(() => undefined);
   }
 
