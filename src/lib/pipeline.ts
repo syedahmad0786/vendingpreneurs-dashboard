@@ -907,13 +907,37 @@ function buildGhostLeadsFromErrors(
   // for the same email collapse to a single card surfacing the latest.
   type ErrGroup = { email: string; rows: AirtableRecord[] };
   const groups = new Map<string, ErrGroup>();
+
+  // Treat these as "no real value" placeholders the n8n workflow occasionally
+  // writes when the lead context wasn't carried through.
+  const isEmptyEmail = (v: string) =>
+    !v || v === "—" || v.toLowerCase() === "unknown" || v === "-";
+  const isEmptyName = (v: string) =>
+    !v || v.toLowerCase() === "unknown" || v === "—" || v === "-";
+
   for (const e of errors) {
     if (matchedIds.has(e.id)) continue;
     const status = (e.fields["Status"] as string) || "";
     if (status !== "New" && status !== "Investigating") continue;
-    const email = ((e.fields["Email"] as string) || "").toLowerCase().trim();
-    const key = email || `__no_email__:${e.id}`;
-    const g = groups.get(key) || { email, rows: [] };
+
+    const rawEmail = ((e.fields["Email"] as string) || "").trim();
+    const rawName = ((e.fields["Lead Name"] as string) || "").trim();
+    const rawLeadId = ((e.fields["Lead ID"] as string) || "").trim();
+
+    // Skip malformed rows — no email AND no name AND no Close lead id means
+    // the row carries zero actionable lead context, almost always emitted by
+    // an n8n workflow that lost the input payload before logging the error.
+    // These cannot be retried, deep-linked, or matched to a real client, so
+    // we hide them from the dashboard. They're auto-resolved by the cleanup
+    // path; surfacing them creates noise and a feedback loop where users
+    // resubmit empty rows that re-fail and create more empty rows.
+    if (isEmptyEmail(rawEmail) && isEmptyName(rawName) && !rawLeadId) {
+      continue;
+    }
+
+    const email = rawEmail.toLowerCase();
+    const key = email && !isEmptyEmail(rawEmail) ? email : `__no_email__:${e.id}`;
+    const g = groups.get(key) || { email: isEmptyEmail(rawEmail) ? "" : email, rows: [] };
     g.rows.push(e);
     groups.set(key, g);
   }
@@ -955,7 +979,12 @@ function buildGhostLeadsFromErrors(
     });
 
     const leadId = (lf["Lead ID"] as string) || "";
-    const fullName = (lf["Lead Name"] as string) || g.email || "(unknown lead)";
+    const rawLeadName = ((lf["Lead Name"] as string) || "").trim();
+    const cleanLeadName =
+      rawLeadName && rawLeadName.toLowerCase() !== "unknown" && rawLeadName !== "—"
+        ? rawLeadName
+        : "";
+    const fullName = cleanLeadName || g.email || "(unknown lead)";
     ghosts.push({
       id: latest.id, // use error record id as the dashboard lead id
       fullName,

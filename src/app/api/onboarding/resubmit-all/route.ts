@@ -82,19 +82,70 @@ export async function POST(req: NextRequest) {
   }
   const f = errRow.fields;
 
-  // Build the payload the n8n workflow expects. Match the field names the
-  // workflow nodes reference ($json.lead_id, $json.email, etc).
+  // Build the payload the n8n workflow expects.
+  //
+  // CRITICAL: the workflow's "Parse Airtable Record" node reads
+  //   record.client_id, record.best_email, record.full_name
+  // and "Fetch Opportunity Data1" calls Close CRM with
+  //   ?lead_id={{ body.client_id }}
+  // — i.e. the field names the Airtable "Resubmit Onboarding" button sends.
+  //
+  // If we send `lead_id` / `email` / `lead_name` (our internal names) the
+  // workflow gets empty values, fires the Close CRM call with no lead id,
+  // gets nothing back, and the "Close CRM Fields Empty" branch fires —
+  // producing a ghost error row with empty Email/Lead Name/Lead ID. That's
+  // the exact pattern we saw on 2026-05-01.
+  //
+  // Send both shapes so we're forwards/backwards compatible.
+  const cleanLeadId = (body.leadId || (f["Lead ID"] as string) || "").trim();
+  const cleanEmail = (body.email || (f["Email"] as string) || "").trim().toLowerCase();
+  const cleanName = (body.leadName || (f["Lead Name"] as string) || "").trim();
   const payload = {
     source: "dashboard:resubmit-all",
     error_record_id: errRow.id,
-    lead_id: (body.leadId || (f["Lead ID"] as string) || "").trim(),
-    email: (body.email || (f["Email"] as string) || "").trim().toLowerCase(),
-    lead_name: (body.leadName || (f["Lead Name"] as string) || "").trim(),
+    // Field names the Airtable button (and the n8n workflow) use:
+    client_id: cleanLeadId,
+    best_email: cleanEmail,
+    full_name: cleanName,
+    record_id: errRow.id,
+    "Client ID": cleanLeadId,
+    "Best Email": cleanEmail,
+    "Full Name": cleanName,
+    // Keep the original names for any consumer that already depends on them:
+    lead_id: cleanLeadId,
+    email: cleanEmail,
+    lead_name: cleanName,
     error_type: (f["Error Type"] as string) || "",
     error_node: (f["Error Node"] as string) || "",
     error_message: (f["Error Message"] as string) || "",
     timestamp: (f["Timestamp"] as string) || new Date().toISOString(),
   };
+
+  // Guard against ghost-error feedback loops. If the row has no email, no
+  // Close lead id, and no real Lead Name, there is nothing for n8n to
+  // resubmit — firing the webhook would cause the workflow to fail
+  // validation and write yet another empty error row, then we'd see the
+  // same ghost back on the dashboard. Auto-resolve and skip the webhook.
+  const isPlaceholder = (v: string) => {
+    const s = (v || "").trim().toLowerCase();
+    return s === "" || s === "—" || s === "-" || s === "unknown";
+  };
+  if (
+    isPlaceholder(payload.email) &&
+    isPlaceholder(payload.lead_id) &&
+    isPlaceholder(payload.lead_name)
+  ) {
+    const note = `Auto-resolved ${new Date().toISOString()} — malformed error row, no lead context (email/lead_id/lead_name all empty). n8n webhook skipped.`;
+    const resolved = await markResolved(errRow.id, note);
+    invalidateTableCache("onboardingErrors");
+    return NextResponse.json({
+      success: true,
+      skippedWebhook: true,
+      reason: "malformed_error_row",
+      errorMarkedResolved: resolved,
+      payload,
+    });
+  }
 
   // Fire the n8n webhook
   let n8nStatus = 0;
