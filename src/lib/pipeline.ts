@@ -411,6 +411,13 @@ export function derivePipeline(
                 : `New signup · ${Math.max(1, Math.round(ageHours))}h since added`,
           };
         }
+        // If there's an open Onboarding Errors row for this lead/step, prefer
+        // it over the synthetic verifier error — that way the New Errors view
+        // (which filters by `errorRecordId`) actually surfaces these and the
+        // "Resubmit all platforms" button can fire the n8n retry path.
+        if (errorFromOpen) {
+          return { ...base, ...errorFromOpen };
+        }
         return {
           ...base,
           status: "error",
@@ -493,6 +500,12 @@ export function derivePipeline(
         };
       }
       if (intercomSyncedFlag === "not imported" || intercomSyncedFlag === "no" || intercomSyncedFlag === "false") {
+        // Same logic as the MN branch — when there's an open Onboarding Error
+        // row for this lead at the intercom step, prefer it so the New Errors
+        // view can attach the Resubmit button to it.
+        if (errorFromOpen) {
+          return { ...base, ...errorFromOpen };
+        }
         return {
           ...base,
           status: "error",
