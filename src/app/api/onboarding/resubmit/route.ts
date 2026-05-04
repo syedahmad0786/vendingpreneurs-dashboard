@@ -137,11 +137,26 @@ export async function POST(req: NextRequest) {
     closeLookup,
   };
 
+  // Fire-and-forget Supabase sync. Mirrors what /api/onboarding/resubmit-all
+  // already does so per-step retries propagate the (possibly newly-backfilled)
+  // Close Lead ID to Supabase immediately, instead of waiting on the
+  // 5-minute cron or relying on the client-side triggerSupabaseSync call.
+  const fireSupabaseSync = () => {
+    if (!incomingEmail) return;
+    const baseUrl = req.nextUrl.origin;
+    fetch(`${baseUrl}/api/supabase/sync-lead`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: incomingEmail }),
+    }).catch(() => undefined);
+  };
+
   // Try the per-step webhook first, fall back to the legacy generic webhook.
   const result = await triggerStepResubmit(body.step, payload);
   if (result.success) {
     invalidateTableCache("clients");
     invalidateTableCache("onboardingErrors");
+    fireSupabaseSync();
     return NextResponse.json({ ...result, closeLookup }, { status: 200 });
   }
 
@@ -149,6 +164,7 @@ export async function POST(req: NextRequest) {
   if (fallback.success) {
     invalidateTableCache("clients");
     invalidateTableCache("onboardingErrors");
+    fireSupabaseSync();
     return NextResponse.json(
       {
         ...fallback,
@@ -157,6 +173,13 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
+  }
+
+  // Even on n8n failure, if we successfully backfilled a Close Lead ID,
+  // push it to Supabase so the dashboard's Cross-platform view reflects
+  // the new lookup result on the next poll.
+  if (closeLookup.discoveredId) {
+    fireSupabaseSync();
   }
 
   // Return the richer of the two failures so the UI can explain why retry failed.

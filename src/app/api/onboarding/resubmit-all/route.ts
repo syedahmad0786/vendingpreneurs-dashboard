@@ -224,11 +224,25 @@ export async function POST(req: NextRequest) {
   }
 
   if (n8nStatus < 200 || n8nStatus >= 300) {
+    // Even on n8n failure, if we successfully backfilled a Close Lead ID
+    // we still want to push that change to Supabase so the dashboard's
+    // Cross-platform view picks it up on the next poll.
+    if (closeLookup.discoveredId && payload.email) {
+      const baseUrl = req.nextUrl.origin;
+      fetch(`${baseUrl}/api/supabase/sync-lead`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: payload.email }),
+      }).catch(() => undefined);
+      invalidateTableCache("clients");
+      invalidateTableCache("studentOnboarding");
+    }
     return NextResponse.json(
       {
         success: false,
         message: `n8n returned ${n8nStatus}`,
         n8nResponse: n8nBody,
+        closeLookup,
       },
       { status: 502 }
     );
