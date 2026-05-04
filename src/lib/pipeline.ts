@@ -806,10 +806,36 @@ export async function fetchPipeline(options?: {
         "On Mighty Networks",
         "MN Join Date",
         "MN Member ID",
+        // MN invitation signals — populated by the New Student Onboarding
+        // flow at the moment we issue an invite. Without these, the
+        // classifier can't tell "we never invited" from "invite sent,
+        // waiting for customer to accept" and incorrectly flags every
+        // not-yet-joined lead as an error past the 14-day grace window.
+        "MN Invite ID",
+        "MN Invite Granted",
         // Intercom (real source of truth, populated by /api/verify/intercom)
         "Intercom Synced",
+        "Intercom Synced At",
+        "Intercom Verified",
         "Intercom Verified At",
         "Intercom Contact ID",
+        "Intercome Failed?", // typo in field name preserved
+        // Email-validation upstream signals also referenced by the
+        // Intercom branch's `upstreamProgressed` heuristic.
+        "Skool Granted",
+        "Was Email sent",
+        // Identity used in some legacy code paths
+        "Client ID",
+        // Vendhub email + verifier metadata
+        "vendhub_email",
+        "VendHub Organization",
+        "VendHub User ID",
+        "VendHub Status",
+        "VendHub Verified At",
+        "Total Number of Machines",
+        // MN verifier timestamps
+        "MN Verified",
+        "MN Verified At",
         // Close Lead ID (legacy text field for deep-linking back to Close)
         "Close Lead ID",
         // VendHub — read every signal Airtable carries so the classifier
