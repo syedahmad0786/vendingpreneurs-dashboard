@@ -18,9 +18,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { invalidateTableCache } from "@/lib/airtable";
 import { triggerResubmit, triggerStepResubmit } from "@/lib/n8n";
+import { resolveCloseLeadId } from "@/lib/close-lookup";
 import type { StepId } from "@/lib/pipeline";
 
 export const maxDuration = 30;
+
+/** Returns true when the value looks like a Close lead id ("lead_xxxxx"). */
+function isValidCloseLeadId(v: unknown): boolean {
+  return typeof v === "string" && /^lead_[A-Za-z0-9]+$/.test(v.trim());
+}
 
 const VALID_STEPS = new Set<StepId>([
   "close_crm",
@@ -72,13 +78,63 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ── Auto-resolve missing Close lead id ─────────────────────────────────
+  // When the dashboard fires a Retry from a New Errors / Pipeline card, the
+  // context.clientId comes from whichever Airtable row the lead came in on.
+  // For ghost-lead errors that originate in the Onboarding Errors table, or
+  // for old Clients rows that never got their Close Lead ID backfilled, the
+  // value is empty — and every per-step n8n retry workflow eventually does
+  // a `https://api.close.com/api/v1/lead/{clientId}/...` call, which fails
+  // with a 404 when clientId is empty and produces another "still failing"
+  // row in Onboarding Errors.
+  //
+  // Look the lead up by email, persist what we find on the matching
+  // Clients + Student Onboarding rows so the next retry has it ready, and
+  // forward the enriched context to n8n.
+  const incomingContext = (body.context || {}) as Record<string, unknown>;
+  const incomingClientId = (incomingContext["clientId"] as string | undefined) ?? "";
+  const incomingEmail = ((incomingContext["email"] as string | undefined) || "").trim();
+  let closeLookup: {
+    attempted: boolean;
+    discoveredId?: string;
+    backfilledClients?: number;
+    backfilledStudents?: number;
+    source?: "lookup" | "not-found" | "error";
+    errorMessage?: string;
+  } = { attempted: false };
+
+  if (!isValidCloseLeadId(incomingClientId) && incomingEmail) {
+    closeLookup = { attempted: true };
+    try {
+      const r = await resolveCloseLeadId(incomingEmail);
+      closeLookup.source = r.source;
+      if (r.errorMessage) closeLookup.errorMessage = r.errorMessage;
+      if (r.closeLeadId) {
+        closeLookup.discoveredId = r.closeLeadId;
+        incomingContext["clientId"] = r.closeLeadId;
+        if (r.backfill) {
+          closeLookup.backfilledClients = r.backfill.clientsUpdated;
+          closeLookup.backfilledStudents = r.backfill.studentsUpdated;
+          if (r.backfill.clientsUpdated > 0 || r.backfill.studentsUpdated > 0) {
+            invalidateTableCache("clients");
+            invalidateTableCache("studentOnboarding");
+          }
+        }
+      }
+    } catch (err) {
+      closeLookup.source = "error";
+      closeLookup.errorMessage = err instanceof Error ? err.message : "unknown";
+    }
+  }
+
   const payload = {
     source: "dashboard_resubmit",
     leadRecordId: body.leadRecordId,
     errorRecordId: body.errorRecordId,
     step: body.step,
-    context: body.context || {},
+    context: incomingContext,
     triggeredAt: new Date().toISOString(),
+    closeLookup,
   };
 
   // Try the per-step webhook first, fall back to the legacy generic webhook.
@@ -86,7 +142,7 @@ export async function POST(req: NextRequest) {
   if (result.success) {
     invalidateTableCache("clients");
     invalidateTableCache("onboardingErrors");
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json({ ...result, closeLookup }, { status: 200 });
   }
 
   const fallback = await triggerResubmit(payload);
@@ -97,6 +153,7 @@ export async function POST(req: NextRequest) {
       {
         ...fallback,
         message: `${fallback.message} (fallback generic webhook used — per-step n8n workflow may not be active yet)`,
+        closeLookup,
       },
       { status: 200 }
     );
@@ -111,6 +168,7 @@ export async function POST(req: NextRequest) {
       status: best.status,
       raw: best.raw,
       data: best.data,
+      closeLookup,
     },
     { status: 502 }
   );

@@ -20,8 +20,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { invalidateTableCache } from "@/lib/airtable";
+import { resolveCloseLeadId } from "@/lib/close-lookup";
 
 export const maxDuration = 60;
+
+/** Returns true when the value looks like a Close lead id ("lead_xxxxx"). */
+function isValidCloseLeadId(v: unknown): boolean {
+  return typeof v === "string" && /^lead_[A-Za-z0-9]+$/.test(v.trim());
+}
 
 const AIRTABLE_PAT = process.env.AIRTABLE_PAT || "";
 const AIRTABLE_BASE = process.env.AIRTABLE_BASE_ID || "";
@@ -97,9 +103,19 @@ export async function POST(req: NextRequest) {
   // the exact pattern we saw on 2026-05-01.
   //
   // Send both shapes so we're forwards/backwards compatible.
-  const cleanLeadId = (body.leadId || (f["Lead ID"] as string) || "").trim();
+  let cleanLeadId = (body.leadId || (f["Lead ID"] as string) || "").trim();
   const cleanEmail = (body.email || (f["Email"] as string) || "").trim().toLowerCase();
   const cleanName = (body.leadName || (f["Lead Name"] as string) || "").trim();
+
+  let closeLookup: {
+    attempted: boolean;
+    discoveredId?: string;
+    backfilledClients?: number;
+    backfilledStudents?: number;
+    source?: "lookup" | "not-found" | "error";
+    errorMessage?: string;
+  } = { attempted: false };
+
   const payload = {
     source: "dashboard:resubmit-all",
     error_record_id: errRow.id,
@@ -145,6 +161,44 @@ export async function POST(req: NextRequest) {
       errorMarkedResolved: resolved,
       payload,
     });
+  }
+
+  // ── Auto-resolve missing Close lead id (after malformed-row guard) ──────
+  // The Onboarding Errors row this resubmit was triggered from often has
+  // no Lead ID populated (the table doesn't carry one). When we forward to
+  // n8n with an empty client_id the workflow's Close CRM call returns
+  // nothing, the "Close CRM Fields Empty" branch fires, and we end up with
+  // another ghost row. Look the lead up by email first, persist what we
+  // find on the matching Clients + Student Onboarding rows so future
+  // operations have it ready, and forward the enriched payload.
+  if (!isValidCloseLeadId(cleanLeadId) && cleanEmail && !isPlaceholder(cleanEmail)) {
+    closeLookup = { attempted: true };
+    try {
+      const r = await resolveCloseLeadId(cleanEmail);
+      closeLookup.source = r.source;
+      if (r.errorMessage) closeLookup.errorMessage = r.errorMessage;
+      if (r.closeLeadId) {
+        closeLookup.discoveredId = r.closeLeadId;
+        cleanLeadId = r.closeLeadId;
+        // Replace every payload field that was carrying the empty Close id
+        // so the n8n workflow gets the discovered one no matter which key it
+        // reads from.
+        payload.client_id = r.closeLeadId;
+        payload.lead_id = r.closeLeadId;
+        payload["Client ID"] = r.closeLeadId;
+        if (r.backfill) {
+          closeLookup.backfilledClients = r.backfill.clientsUpdated;
+          closeLookup.backfilledStudents = r.backfill.studentsUpdated;
+          if (r.backfill.clientsUpdated > 0 || r.backfill.studentsUpdated > 0) {
+            invalidateTableCache("clients");
+            invalidateTableCache("studentOnboarding");
+          }
+        }
+      }
+    } catch (err) {
+      closeLookup.source = "error";
+      closeLookup.errorMessage = err instanceof Error ? err.message : "unknown";
+    }
   }
 
   // Fire the n8n webhook
@@ -206,6 +260,7 @@ export async function POST(req: NextRequest) {
     success: true,
     n8nStatus,
     errorMarkedResolved: resolved,
+    closeLookup,
     payload,
   });
 }
