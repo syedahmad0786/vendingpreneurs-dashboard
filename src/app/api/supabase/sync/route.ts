@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         // Intercom (real verifier output)
         "Intercom Synced", "Intercom Verified At", "Intercom Contact ID",
         // VendHub
-        "On Vendstack", "in_vendhub", "Invited to VendHUB", "invited_to_vendhub",
+        "On Vendstack", "in_vendhub", "invited_to_vendhub",
         "Has Machine", "Machines Placed", "Vendhub Participation", "VendHub Data Sync",
         // Close lead deep-link
         "Close Lead ID",

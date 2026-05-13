@@ -831,7 +831,11 @@ export async function fetchPipeline(options?: {
         // on Machines Placed.
         "On Vendstack",
         "in_vendhub",
-        "Invited to VendHUB",
+        // Note: only the lowercase `invited_to_vendhub` column exists on
+        // Clients — there is no capital-V "Invited to VendHUB" field
+        // there, even though the classifier was historically checking
+        // for both. Reading the missing field name in fields[] causes
+        // Airtable to reject the entire request with UNKNOWN_FIELD_NAME.
         "invited_to_vendhub",
         "Has Machine",
         "Machines Placed",
